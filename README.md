@@ -50,12 +50,13 @@ Two processes, from the repo root (keep the first terminal open):
 
 ```powershell
 # 1) backend  (http://localhost:8000)
+autpro
 python -m uvicorn server.app:app --reload --port 8000
 ```
 
 ```
 cd web
-npm run dev
+npm runpro
 ```
 
 Then open **http://localhost:5173** (Vite proxies `/api` → `:8000`):

@@ -44,8 +44,8 @@ export default function UsersAdmin({
   };
 
   const add = async () => {
-    if (!username.trim() || password.length < 8) {
-      onError("A username and a password of at least 8 characters are required.");
+    if (!username.trim() || password.length < 4) {
+      onError("A username and a password of at least 4 characters are required.");
       return;
     }
     setCreating(true);
@@ -65,10 +65,10 @@ export default function UsersAdmin({
   };
 
   const resetPassword = async (u: AuthUser) => {
-    const next = window.prompt(`New password for "${u.username}" (min 8 chars):`);
+    const next = window.prompt(`New password for "${u.username}" (min 4 chars):`);
     if (next == null) return;
-    if (next.length < 8) {
-      onError("Password must be at least 8 characters.");
+    if (next.length < 4) {
+      onError("Password must be at least 4 characters.");
       return;
     }
     setBusyId(u.id);

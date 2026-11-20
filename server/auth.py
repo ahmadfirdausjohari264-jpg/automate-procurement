@@ -42,9 +42,9 @@ try:
 except ValueError:
     SESSION_DAYS = 7
 try:
-    PASSWORD_MIN_LENGTH = max(8, int(os.environ.get("PASSWORD_MIN_LENGTH", "8")))
+    PASSWORD_MIN_LENGTH = max(4, int(os.environ.get("PASSWORD_MIN_LENGTH", "4")))
 except ValueError:
-    PASSWORD_MIN_LENGTH = 8
+    PASSWORD_MIN_LENGTH = 4
 
 # Encrypted API keys are stored as ``enc:v1:<fernet token>``. Legacy plaintext
 # values (from older installs) are encrypted once on startup.
