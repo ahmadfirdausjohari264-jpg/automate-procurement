@@ -6,8 +6,8 @@ import type { Job, LineItem, LineItemEdit } from "../types";
 function Stat({ label, value, accent }: { label: string; value: number | string; accent?: boolean }) {
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/70 p-4">
-      <p className="font-mono text-[11px] uppercase tracking-wide text-paper-200/50">{label}</p>
-      <p className={["mt-1 font-mono text-2xl font-semibold", accent ? "text-amber" : "text-paper-50"].join(" ")}>
+      <p className="font-mono text-[11px] uppercase tracking-wide text-paper-200/85">{label}</p>
+      <p className={["mt-1 font-mono text-2xl font-semibold", accent ? "text-rose" : "text-paper-50"].join(" ")}>
         {value}
       </p>
     </div>
@@ -25,11 +25,11 @@ function Field({
 }) {
   return (
     <label className={`flex flex-col gap-1 ${className}`}>
-      <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/50">{label}</span>
+      <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/85">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none"
+        className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none"
       />
     </label>
   );
@@ -137,23 +137,23 @@ export default function Results({
       </div>
 
       {(meta.project_ref || meta.buyer || meta.delivery_location) && (
-        <div className="rounded-xl border border-ink-700 bg-ink-900/70 p-4 font-mono text-xs text-paper-200/80">
+        <div className="rounded-xl border border-ink-700 bg-ink-900/70 p-4 font-mono text-xs text-paper-200/95">
           {meta.project_ref && (
             <p>
-              <span className="text-paper-200/50">PROJECT REF: </span>
+              <span className="text-paper-200/85">PROJECT REF: </span>
               {meta.project_ref}
               {meta.project_title ? ` — ${meta.project_title}` : ""}
             </p>
           )}
           {meta.buyer && (
             <p>
-              <span className="text-paper-200/50">BUYER: </span>
+              <span className="text-paper-200/85">BUYER: </span>
               {meta.buyer}
             </p>
           )}
           {meta.delivery_location && (
             <p>
-              <span className="text-paper-200/50">DELIVERY: </span>
+              <span className="text-paper-200/85">DELIVERY: </span>
               {meta.delivery_location}
             </p>
           )}
@@ -175,7 +175,7 @@ export default function Results({
       <div className="overflow-x-auto rounded-xl border border-ink-700">
         <table className="w-full min-w-[740px] border-collapse text-left">
           <thead>
-            <tr className="bg-ink-800 font-mono text-[11px] uppercase tracking-wide text-paper-200/60">
+            <tr className="bg-ink-800 font-mono text-[11px] uppercase tracking-wide text-paper-200/90">
               <th className="px-3 py-2">No.</th>
               <th className="px-3 py-2">Item Name</th>
               <th className="px-3 py-2">Item No.</th>
@@ -187,7 +187,7 @@ export default function Results({
           <tbody>
             {result.line_items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center font-mono text-xs text-paper-200/40">
+                <td colSpan={6} className="px-3 py-6 text-center font-mono text-xs text-paper-200/80">
                   No line items identified.
                 </td>
               </tr>
@@ -195,9 +195,9 @@ export default function Results({
               result.line_items.map((item, i) => (
                 <Fragment key={i}>
                   <tr className="border-t border-ink-800 font-mono text-xs text-paper-50 transition hover:bg-ink-800/30">
-                    <td className="px-3 py-2 text-paper-200/60">{item.item_no ?? i + 1}</td>
+                    <td className="px-3 py-2 text-paper-200/90">{item.item_no ?? i + 1}</td>
                     <td className="px-3 py-2">{item.item_name ?? item.description ?? "—"}</td>
-                    <td className="px-3 py-2 text-paper-200/70">{item.item_number ?? "—"}</td>
+                    <td className="px-3 py-2 text-paper-200/90">{item.item_number ?? "—"}</td>
                     <td className="px-3 py-2 text-center">{item.qty ?? "—"}</td>
                     <td className="px-3 py-2 text-center">{item.uom ?? "—"}</td>
                     <td className="px-3 py-2">
@@ -206,7 +206,7 @@ export default function Results({
                           type="button"
                           onClick={() => startEdit(i, item)}
                           disabled={saving || deleting !== null}
-                          className="rounded border border-ink-600 px-3 py-1 font-mono text-[11px] text-paper-200/60 transition hover:border-amber/50 hover:text-amber disabled:opacity-50"
+                          className="rounded border border-ink-600 px-3 py-1 font-mono text-[11px] text-paper-200/90 transition hover:border-rose/50 hover:text-rose disabled:opacity-50"
                         >
                           edit
                         </button>
@@ -214,7 +214,7 @@ export default function Results({
                           type="button"
                           onClick={() => removeItem(i, item)}
                           disabled={saving || deleting !== null}
-                          className="rounded border border-ink-600 px-3 py-1 font-mono text-[11px] text-paper-200/60 transition hover:border-danger/50 hover:text-danger disabled:opacity-50"
+                          className="rounded border border-ink-600 px-3 py-1 font-mono text-[11px] text-paper-200/90 transition hover:border-danger/50 hover:text-danger disabled:opacity-50"
                         >
                           {deleting === i ? "deleting…" : "delete"}
                         </button>
@@ -256,14 +256,14 @@ export default function Results({
                             className="sm:col-span-1"
                           />
                           <label className="flex flex-col gap-1 sm:col-span-4">
-                            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/50">
+                            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/85">
                               Description
                             </span>
                             <textarea
                               value={draft.description}
                               onChange={(e) => setField("description", e.target.value)}
                               rows={2}
-                              className="resize-y rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none"
+                              className="resize-y rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none"
                             />
                           </label>
                         </div>
@@ -271,7 +271,7 @@ export default function Results({
                           <p className="mt-2 font-mono text-[11px] text-danger">{formError}</p>
                         )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-mono text-[10px] text-paper-200/40">
+                          <p className="font-mono text-[10px] text-paper-200/80">
                             Saving rebuilds the specification sheet and RFQ email.
                           </p>
                           <div className="flex gap-2">
@@ -279,7 +279,7 @@ export default function Results({
                               type="button"
                               onClick={cancelEdit}
                               disabled={saving}
-                              className="rounded-lg border border-ink-600 px-4 py-1.5 font-mono text-xs text-paper-200/60 transition hover:text-paper-100 disabled:opacity-50"
+                              className="rounded-lg border border-ink-600 px-4 py-1.5 font-mono text-xs text-paper-200/90 transition hover:text-paper-100 disabled:opacity-50"
                             >
                               cancel
                             </button>
@@ -287,7 +287,7 @@ export default function Results({
                               type="button"
                               onClick={saveEdit}
                               disabled={saving}
-                              className="rounded-lg bg-amber px-4 py-1.5 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light disabled:opacity-50"
+                              className="rounded-lg bg-maroon px-4 py-1.5 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light disabled:opacity-50"
                             >
                               {saving ? "saving…" : "save"}
                             </button>
@@ -306,7 +306,7 @@ export default function Results({
       {result.has_output && (
         <a
           href={downloadUrl(job.id)}
-          className="inline-flex items-center gap-2 rounded-lg bg-amber px-5 py-2.5 font-mono text-sm font-semibold text-space-950 transition hover:bg-amber-light"
+          className="inline-flex items-center gap-2 rounded-lg bg-maroon px-5 py-2.5 font-mono text-sm font-semibold text-paper-50 transition hover:bg-maroon-light"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3v12" />
@@ -319,7 +319,7 @@ export default function Results({
 
       {result.source_files.length > 0 && (
         <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-4">
-          <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-paper-200/70">
+          <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-wide text-paper-200/90">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <path d="M14 2v6h6" />
@@ -328,8 +328,8 @@ export default function Results({
           </div>
           <ul className="space-y-1">
             {result.source_files.map((name) => (
-              <li key={name} className="font-mono text-xs text-paper-200">
-                <span className="text-amber">›</span> {name}
+              <li key={name} className="font-mono text-xs text-paper-50">
+                <span className="text-rose">›</span> {name}
               </li>
             ))}
           </ul>

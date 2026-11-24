@@ -60,6 +60,7 @@ export type SupplierScope = "mine" | "all";
 export interface SavedSupplier {
   id: string;
   company_name: string;
+  business_scope: string;
   website: string;
   email: string;
   contact: string;
@@ -74,7 +75,7 @@ export interface SavedSupplier {
 /** Fields a user can set/edit for a curated supplier. */
 export type SupplierDraft = Pick<
   SavedSupplier,
-  "company_name" | "website" | "email" | "contact" | "source" | "notes" | "tags"
+  "company_name" | "business_scope" | "website" | "email" | "contact" | "source" | "notes" | "tags"
 >;
 
 /** Result of bulk-importing suppliers into the master list. */

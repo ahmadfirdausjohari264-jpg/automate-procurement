@@ -20,7 +20,7 @@ function formatWhen(iso: string): string {
 const DOT: Record<string, string> = {
   done: "bg-teal",
   error: "bg-danger",
-  running: "bg-amber animate-pulse-dot",
+  running: "bg-red animate-pulse-dot",
   queued: "bg-paper-200/40",
 };
 
@@ -61,19 +61,19 @@ export default function AdminHistory({ onError }: Props) {
   return (
     <div className="rounded-2xl border border-ink-800 bg-ink-900/40 p-5">
       <div className="flex items-baseline justify-between gap-4">
-        <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">
+        <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">
           User activity
         </p>
-        <p className="font-mono text-[10px] text-paper-200/40">
+        <p className="font-mono text-[10px] text-paper-200/80">
           {total} run{total === 1 ? "" : "s"} across {owners.length} account
           {owners.length === 1 ? "" : "s"}
         </p>
       </div>
 
       {loading ? (
-        <p className="mt-4 font-mono text-xs text-paper-200/40">loading…</p>
+        <p className="mt-4 font-mono text-xs text-paper-200/80">loading…</p>
       ) : owners.length === 0 ? (
-        <p className="mt-4 font-mono text-xs leading-relaxed text-paper-200/40">
+        <p className="mt-4 font-mono text-xs leading-relaxed text-paper-200/80">
           No runs saved yet by any account.
         </p>
       ) : (
@@ -93,16 +93,16 @@ export default function AdminHistory({ onError }: Props) {
                   <span className="font-mono text-xs font-semibold text-paper-50">
                     {label}
                   </span>
-                  <span className="font-mono text-[10px] text-paper-200/40">
+                  <span className="font-mono text-[10px] text-paper-200/80">
                     @{owner.username}
                   </span>
                   {owner.role === "admin" && (
-                    <span className="font-mono text-[10px] text-amber/70">· admin</span>
+                    <span className="font-mono text-[10px] text-rose/70">· admin</span>
                   )}
-                  <span className="ml-auto font-mono text-[10px] text-paper-200/40">
+                  <span className="ml-auto font-mono text-[10px] text-paper-200/80">
                     {owner.jobs.length} run{owner.jobs.length === 1 ? "" : "s"}
                   </span>
-                  <span className="font-mono text-[10px] text-paper-200/30">
+                  <span className="font-mono text-[10px] text-paper-200/70">
                     {expanded ? "▲" : "▼"}
                   </span>
                 </button>
@@ -123,14 +123,14 @@ export default function AdminHistory({ onError }: Props) {
                         <span className="min-w-0 flex-1 truncate font-mono text-xs text-paper-50">
                           {job.title}
                         </span>
-                        <span className="hidden min-w-0 truncate font-mono text-[10px] text-paper-200/45 sm:block">
+                        <span className="hidden min-w-0 truncate font-mono text-[10px] text-paper-200/80 sm:block">
                           {job.subtitle}
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-paper-200/40">
+                        <span className="shrink-0 font-mono text-[10px] text-paper-200/80">
                           {job.line_items_count} item
                           {job.line_items_count === 1 ? "" : "s"}
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-paper-200/40">
+                        <span className="shrink-0 font-mono text-[10px] text-paper-200/80">
                           {formatWhen(job.created_at)}
                         </span>
                       </li>

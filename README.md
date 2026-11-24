@@ -14,6 +14,10 @@ copy-ready quotation request email.
   contains terms/HSE/guide docs you do not want read.
 - Produce a formatted **specification sheet** (`.docx`).
 - Generate one **copy-ready RFQ email** covering all line items.
+- Maintain a **Client / Contractor List** with master-directory, quick supplier
+  search, and project-shortlist tabs. Drop Excel, CSV, PDF, Word, PowerPoint, or
+  image files into the directory workspace to extract supplier records for review
+  before saving them.
 
 ## Requirements
 
@@ -56,7 +60,7 @@ python -m uvicorn server.app:app --reload --port 8000
 
 ```
 cd web
-npm runpro
+runpro
 ```
 
 Then open **http://localhost:5173** (Vite proxies `/api` → `:8000`):

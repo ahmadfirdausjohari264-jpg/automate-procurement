@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { HistoryItem } from "../types";
+import DynaBrand from "./DynaBrand";
 
 /** Compact relative time for history entries (e.g. "3h ago", "Jun 4"). */
 function formatWhen(iso: string): string {
@@ -19,17 +21,24 @@ function formatWhen(iso: string): string {
 const DOT: Record<string, string> = {
   done: "bg-teal",
   error: "bg-danger",
-  running: "bg-amber animate-pulse-dot",
+  running: "bg-red animate-pulse-dot",
   queued: "bg-paper-200/40",
 };
+
+type WorkspaceTab = "dashboard" | "pipeline" | "directory" | "emails" | "settings";
 
 interface Props {
   items: HistoryItem[];
   activeId: string | null;
+  activeTab: WorkspaceTab;
   loading: boolean;
   open: boolean;
+  collapsed: boolean;
   running: boolean;
+  projectView: boolean;
   onClose: () => void;
+  onToggle: () => void;
+  onNavigate: (tab: WorkspaceTab) => void;
   onNew: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
@@ -44,10 +53,15 @@ interface Props {
 export default function HistorySidebar({
   items,
   activeId,
+  activeTab,
   loading,
   open,
+  collapsed,
   running,
+  projectView,
   onClose,
+  onToggle,
+  onNavigate,
   onNew,
   onSelect,
   onDelete,
@@ -77,55 +91,114 @@ export default function HistorySidebar({
     setEditingId(null);
   };
 
+  const navItems: { id: WorkspaceTab; label: string; icon: ReactNode }[] = [
+    { id: "dashboard" as const, label: "Dashboard", icon: <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /> },
+    { id: "pipeline" as const, label: "Pipeline", icon: <path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7" /> },
+    { id: "directory" as const, label: "Client / Contractor List", icon: <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1m4 0h1m-6 4h1m4 0h1m-5 7v-4h2v4" /> },
+    ...(projectView ? [{ id: "emails" as const, label: "Quotation Email", icon: <path d="M4 5h16v14H4zM4 7l8 6 8-6" /> }] : []),
+    { id: "settings" as const, label: "Settings", icon: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.6 2.8-.2-.1a1.7 1.7 0 0 0-1.8.2l-.2.1h-3.2l-.1-.2a1.7 1.7 0 0 0-1.6-1.1 1.7 1.7 0 0 0-1.1.4l-.2.1-2.8-1.6.1-.2a1.7 1.7 0 0 0-.2-1.8l-.1-.2v-3.2l.2-.1a1.7 1.7 0 0 0 1.1-1.6 1.7 1.7 0 0 0-.4-1.1l-.1-.2 1.6-2.8.2.1a1.7 1.7 0 0 0 1.8-.2l.2-.1h3.2l.1.2a1.7 1.7 0 0 0 1.6 1.1 1.7 1.7 0 0 0 1.1-.4l.2-.1 2.8 1.6-.1.2a1.7 1.7 0 0 0 .2 1.8l.1.2v3.2l-.2.1a1.7 1.7 0 0 0-1.1 1.6" /></> },
+  ];
+
   return (
     <>
       {open && (
         <div
-          className="fixed inset-0 z-30 bg-space-950/70 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-30 bg-maroon-950/75 backdrop-blur-sm md:hidden"
           onClick={onClose}
         />
       )}
 
       <aside
         className={[
-          "z-40 flex w-72 shrink-0 flex-col border-r border-ink-800/80 bg-ink-950/55 backdrop-blur-xl",
+          "z-40 flex shrink-0 flex-col overflow-hidden border-r border-ink-800/80 bg-ink-950/55 backdrop-blur-xl",
           "fixed inset-y-0 left-0 transition-transform duration-200",
-          "md:sticky md:top-0 md:h-screen md:self-start md:translate-x-0",
+          "md:sticky md:top-0 md:h-screen md:self-start md:translate-x-0 md:transition-all md:duration-300 md:ease-in-out",
+          collapsed ? "md:w-16" : "md:w-72",
+          "w-72",
           open ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
-        <div className="flex items-center justify-between border-b border-ink-800 px-4 py-4">
-          <div className="flex items-center gap-2 font-mono text-sm">
-            <span className="text-amber">▮</span>
-            <span className="font-semibold tracking-tight text-paper-50">automate</span>
-          </div>
+        <div className={`flex items-center border-b border-ink-800 px-4 py-4 ${collapsed ? "md:h-16 md:flex-col md:justify-center md:gap-1 md:px-0" : "justify-between"}`}>
+          <DynaBrand compact={collapsed} className={collapsed ? "md:justify-center" : ""} />
+          <button
+            onClick={onToggle}
+            className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded border border-ink-700 text-paper-200/90 transition hover:border-rose/50 hover:text-rose md:flex ${collapsed ? "md:h-5 md:w-5" : ""}`}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              {collapsed ? <path d="m9 18 6-6-6-6" /> : <path d="m15 18-6-6 6-6" />}
+            </svg>
+          </button>
           <button
             onClick={onClose}
-            className="font-mono text-xs text-paper-200/50 hover:text-paper-50 md:hidden"
+            className="font-mono text-xs text-paper-200/85 hover:text-paper-50 md:hidden"
           >
             close
           </button>
         </div>
 
-        <div className="p-3">
+        <div className={`p-3 ${collapsed ? "md:px-2" : ""}`}>
           <button
             onClick={onNew}
             disabled={running}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:border-amber/50 hover:text-amber disabled:cursor-not-allowed disabled:opacity-50"
+            title={collapsed ? "New ITB" : undefined}
+            aria-label={collapsed ? "New ITB" : undefined}
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:border-rose/50 hover:text-rose disabled:cursor-not-allowed disabled:opacity-50 ${collapsed ? "md:px-2" : ""}`}
           >
-            <span className="text-amber">+</span> New ITB
+            <span className="text-rose">+</span>
+            <span className={`overflow-hidden whitespace-nowrap transition-opacity duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-20 md:opacity-100"}`}>
+              New ITB
+            </span>
           </button>
         </div>
 
-        <p className="px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/40">
+        <p className={`overflow-hidden whitespace-nowrap px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/80 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:px-0 md:py-0 md:opacity-0" : "md:max-h-8 md:opacity-100"}`}>
+          workspace
+        </p>
+        <nav className={`px-2 pb-3 ${collapsed ? "md:px-1" : ""}`}>
+          <ul className="space-y-1">
+            {navItems.map((item) => (
+              <li key={item.id}>
+                <button
+                  onClick={() => {
+                    onNavigate(item.id);
+                    onClose();
+                  }}
+                  title={collapsed ? item.label : undefined}
+                  aria-label={item.label}
+                  aria-current={activeTab === item.id ? "page" : undefined}
+                  className={`relative flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left font-mono text-xs transition ${
+                    activeTab === item.id
+                      ? "border-maroon-700 bg-maroon-800 text-paper-50"
+                      : "border-transparent text-paper-200/90 hover:border-ink-700 hover:bg-ink-900 hover:text-paper-50"
+                  } ${collapsed ? "md:justify-center md:px-1" : ""}`}
+                >
+                  {activeTab === item.id && (
+                    <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r bg-red" />
+                  )}
+                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    {item.icon}
+                  </svg>
+                  <span className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>
+                    {item.label}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <p className={`overflow-hidden whitespace-nowrap px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/80 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:px-0 md:py-0 md:opacity-0" : "md:max-h-8 md:opacity-100"}`}>
           history
         </p>
 
-        <nav className="flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin">
+        <nav className={`flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin ${collapsed ? "md:px-1" : ""}`}>
           {loading && items.length === 0 ? (
-            <p className="px-3 py-4 font-mono text-xs text-paper-200/40">loading…</p>
+            <p className={`px-3 py-4 font-mono text-xs text-paper-200/80 ${collapsed ? "md:hidden" : ""}`}>loading…</p>
           ) : items.length === 0 ? (
-            <p className="px-3 py-4 font-mono text-xs leading-relaxed text-paper-200/40">
+            <p className={`px-3 py-4 font-mono text-xs leading-relaxed text-paper-200/80 ${collapsed ? "md:hidden" : ""}`}>
               No saved ITB runs yet.
               <br />
               Finished runs appear here.
@@ -140,7 +213,7 @@ export default function HistorySidebar({
                 if (editing) {
                   return (
                     <li key={item.id}>
-                      <div className="rounded-lg border border-amber/40 bg-amber/10 p-2">
+                      <div className="rounded-lg border border-rose/40 bg-rose/10 p-2">
                         <input
                           ref={inputRef}
                           value={draft}
@@ -150,20 +223,20 @@ export default function HistorySidebar({
                             if (e.key === "Escape") setEditingId(null);
                           }}
                           onBlur={commitEdit}
-                          className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none"
+                          className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none"
                         />
                         <div className="mt-1.5 flex justify-end gap-2">
                           <button
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => setEditingId(null)}
-                            className="font-mono text-[10px] text-paper-200/50 hover:text-paper-50"
+                            className="font-mono text-[10px] text-paper-200/85 hover:text-paper-50"
                           >
                             cancel
                           </button>
                           <button
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={commitEdit}
-                            className="font-mono text-[10px] text-amber hover:text-amber-light"
+                            className="font-mono text-[10px] text-rose hover:text-maroon-light"
                           >
                             save
                           </button>
@@ -177,13 +250,13 @@ export default function HistorySidebar({
                   return (
                     <li key={item.id}>
                       <div className="rounded-lg border border-danger/40 bg-danger/10 p-2.5">
-                        <p className="truncate font-mono text-[11px] text-paper-200/80">
+                        <p className="truncate font-mono text-[11px] text-paper-200/95">
                           Delete “{item.title}”?
                         </p>
                         <div className="mt-1.5 flex justify-end gap-2">
                           <button
                             onClick={() => setConfirmId(null)}
-                            className="font-mono text-[10px] text-paper-200/50 hover:text-paper-50"
+                            className="font-mono text-[10px] text-paper-200/85 hover:text-paper-50"
                           >
                             cancel
                           </button>
@@ -208,43 +281,44 @@ export default function HistorySidebar({
                       onClick={() => onSelect(item.id)}
                       className={[
                         "w-full rounded-lg border px-3 py-2.5 pr-14 text-left transition",
+                        collapsed ? "md:px-1 md:py-2.5 md:pr-1" : "",
                         active
-                          ? "border-amber/40 bg-amber/10"
+                          ? "border-rose/40 bg-rose/10"
                           : "border-transparent hover:border-ink-700 hover:bg-ink-900",
                       ].join(" ")}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${collapsed ? "md:justify-center" : ""}`}>
                         <span
                           className={[
                             "h-1.5 w-1.5 shrink-0 rounded-full",
                             DOT[item.status] ?? DOT.queued,
                           ].join(" ")}
                         />
-                        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium text-paper-50">
+                        <span className={`min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap font-mono text-xs font-medium text-paper-50 transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-[12rem] md:opacity-100"}`}>
                           {item.title}
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-paper-200/40">
+                        <span className={`shrink-0 overflow-hidden whitespace-nowrap font-mono text-[10px] text-paper-200/80 transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-16 md:opacity-100"}`}>
                           {formatWhen(item.created_at)}
                         </span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 pl-3.5">
-                        <span className="min-w-0 truncate font-mono text-[10px] text-paper-200/45">
+                      <div className={`mt-1 flex max-h-8 items-center justify-between gap-2 overflow-hidden pl-3.5 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:opacity-0" : "md:opacity-100"}`}>
+                        <span className="min-w-0 truncate font-mono text-[10px] text-paper-200/80">
                           {item.subtitle}
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-paper-200/45">
+                        <span className="shrink-0 font-mono text-[10px] text-paper-200/80">
                           {item.line_items_count} item{item.line_items_count === 1 ? "" : "s"}
                         </span>
                       </div>
                     </button>
 
-                    <div className="absolute right-1.5 top-1.5 hidden items-center gap-0.5 group-hover:flex">
+                    <div className={`absolute right-1.5 top-1.5 hidden items-center gap-0.5 group-hover:flex ${collapsed ? "md:hidden" : ""}`}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           startEdit(item);
                         }}
                         title="Rename"
-                        className="flex h-6 w-6 items-center justify-center rounded text-paper-200/40 transition hover:bg-ink-800 hover:text-amber"
+                        className="flex h-6 w-6 items-center justify-center rounded text-paper-200/80 transition hover:bg-ink-800 hover:text-rose"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 20h9" />
@@ -258,7 +332,7 @@ export default function HistorySidebar({
                           setConfirmId(item.id);
                         }}
                         title="Delete"
-                        className="flex h-6 w-6 items-center justify-center rounded font-mono text-sm text-paper-200/40 transition hover:bg-danger/10 hover:text-danger"
+                        className="flex h-6 w-6 items-center justify-center rounded font-mono text-sm text-paper-200/80 transition hover:bg-danger/10 hover:text-danger"
                       >
                         ×
                       </button>
@@ -270,8 +344,9 @@ export default function HistorySidebar({
           )}
         </nav>
 
-        <div className="border-t border-ink-800 px-4 py-3 font-mono text-[10px] text-paper-200/30">
-          {items.length} saved run{items.length === 1 ? "" : "s"}
+        <div className={`border-t border-ink-800 px-4 py-3 font-mono text-[10px] text-paper-200/70 ${collapsed ? "md:px-2 md:text-center" : ""}`} title={collapsed ? `${items.length} saved run${items.length === 1 ? "" : "s"}` : undefined}>
+          <span className={collapsed ? "md:hidden" : ""}>{items.length} saved run{items.length === 1 ? "" : "s"}</span>
+          {collapsed && <span className="hidden md:inline">{items.length}</span>}
         </div>
       </aside>
     </>

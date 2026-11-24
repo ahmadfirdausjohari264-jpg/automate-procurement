@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { login } from "../api";
+import DynaBrand from "./DynaBrand";
 import type { AuthUser } from "../types";
 
 /**
@@ -40,22 +41,19 @@ export default function Login({ onSuccess }: { onSuccess: (user: AuthUser) => vo
   return (
     <div className="flex min-h-screen items-center justify-center bg-grid px-6">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center justify-center gap-3 font-mono text-sm">
-          <span className="text-amber">▮</span>
-          <span className="font-semibold tracking-tight text-paper-50">automate</span>
-          <span className="text-paper-200/40">//</span>
-          <span className="text-paper-200/70">procurement</span>
+        <div className="mb-6 flex justify-center">
+          <DynaBrand />
         </div>
 
         <form
           onSubmit={submit}
           className="rounded-2xl border border-ink-700 bg-ink-900/70 p-6 backdrop-blur-xl"
         >
-          <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Sign in</p>
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Sign in</p>
           <h1 className="mt-2 font-mono text-xl font-semibold text-paper-50">Welcome back</h1>
 
           <label className="mt-5 flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/50">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/85">
               username
             </span>
             <input
@@ -63,12 +61,12 @@ export default function Login({ onSuccess }: { onSuccess: (user: AuthUser) => vo
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              className="rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2 font-mono text-sm text-paper-50 focus:border-amber focus:outline-none"
+              className="rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2 font-mono text-sm text-paper-50 focus:border-rose focus:outline-none"
             />
           </label>
 
           <label className="mt-4 flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/50">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-paper-200/85">
               password
             </span>
             <input
@@ -76,7 +74,7 @@ export default function Login({ onSuccess }: { onSuccess: (user: AuthUser) => vo
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
-              className="rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2 font-mono text-sm text-paper-50 focus:border-amber focus:outline-none"
+              className="rounded-lg border border-ink-700 bg-ink-950/60 px-3 py-2 font-mono text-sm text-paper-50 focus:border-rose focus:outline-none"
             />
           </label>
 
@@ -89,12 +87,12 @@ export default function Login({ onSuccess }: { onSuccess: (user: AuthUser) => vo
           <button
             type="submit"
             disabled={busy}
-            className="mt-5 w-full rounded-lg bg-amber px-6 py-2.5 font-mono text-sm font-semibold text-space-950 transition hover:bg-amber-light disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 w-full rounded-lg bg-maroon px-6 py-2.5 font-mono text-sm font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "SIGNING IN…" : "SIGN IN"}
           </button>
 
-          <p className="mt-4 text-center font-mono text-[11px] leading-relaxed text-paper-200/40">
+          <p className="mt-4 text-center font-mono text-[11px] leading-relaxed text-paper-200/80">
             Accounts are created by an administrator.
             <br />
             Ask your admin for credentials, or create the first admin via the CLI.

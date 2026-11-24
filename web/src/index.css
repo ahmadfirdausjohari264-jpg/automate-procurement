@@ -4,24 +4,30 @@
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --color-space-950: #03040a;
-  --color-space-900: #05070f;
-  --color-space-800: #0a0e1a;
+  --color-space-950: #0d0e12;
+  --color-space-900: #12141a;
+  --color-space-800: #16181e;
 
-  --color-ink-950: #0f1117;
-  --color-ink-900: #12141c;
-  --color-ink-800: #1a1d29;
-  --color-ink-700: #242836;
-  --color-ink-600: #333849;
+  --color-ink-950: #0d0e12;
+  --color-ink-900: #16181e;
+  --color-ink-800: #1c1f27;
+  --color-ink-700: #262933;
+  --color-ink-600: #353944;
 
-  --color-paper-50: #f3f5f7;
+  --color-paper-50: #f8fafc;
   --color-paper-100: #ffffff;
-  --color-paper-200: #e4e7ec;
+  --color-paper-200: #aab0bf;
 
-  --color-amber: #e8a33d;
-  --color-amber-light: #f0b85f;
-  --color-teal: #5ec8c0;
-  --color-danger: #ff6568;
+  --color-red: #e63946;
+  --color-maroon-950: #0d0e12;
+  --color-maroon-900: #12141a;
+  --color-maroon-800: #4d0000;
+  --color-maroon-700: #e63946;
+  --color-maroon: #e63946;
+  --color-maroon-light: #ff2e4d;
+  --color-rose: #ff2e4d;
+  --color-teal: #10b981;
+  --color-danger: #ff2e4d;
 }
 
 html,
@@ -32,27 +38,33 @@ body,
 
 body {
   margin: 0;
-  background-color: var(--color-space-950);
-  background-image:
-    radial-gradient(circle at 85% -5%, rgba(232, 163, 61, 0.35), transparent 45%),
-    radial-gradient(circle at -5% 95%, rgba(94, 200, 192, 0.3), transparent 45%),
-    linear-gradient(180deg, #0a0f1e 0%, var(--color-space-950) 50%, #0a1020 100%);
+  background-color: #0d0e12;
+  background-image: linear-gradient(180deg, #12141a 0%, #0d0e12 100%);
   background-attachment: fixed;
   color: var(--color-paper-50);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
+.bg-maroon {
+  background-color: #e63946;
+  background-image: linear-gradient(180deg, #4d0000 0%, #e63946 100%);
+}
+
+.bg-maroon:hover {
+  background-image: linear-gradient(180deg, #ff2e4d 0%, #4d0000 100%);
+}
+
 ::selection {
-  background: var(--color-amber);
-  color: var(--color-space-950);
+  background: var(--color-maroon-800);
+  color: var(--color-paper-50);
 }
 
 /* Subtle grid backdrop */
 .bg-grid {
-  background-image: linear-gradient(rgba(94, 200, 192, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(94, 200, 192, 0.05) 1px, transparent 1px);
-  background-size: 44px 44px;
+  background-image: linear-gradient(rgba(195, 202, 217, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(195, 202, 217, 0.055) 1px, transparent 1px);
+  background-size: 48px 48px;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -60,7 +72,7 @@ body {
   height: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #242836;
+  background: #262933;
   border-radius: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {

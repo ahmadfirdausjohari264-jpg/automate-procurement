@@ -50,16 +50,16 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/70 p-4">
       <div className="flex items-center justify-between">
-        <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">
+        <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">
           add files to this ITB
         </p>
         {files.length > 0 && (
-          <span className="font-mono text-[11px] text-paper-200/40">{files.length} selected</span>
+          <span className="font-mono text-[11px] text-paper-200/80">{files.length} selected</span>
         )}
       </div>
 
-      <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/50">
-        Upload extra documents or screenshots for this run. Only the <span className="text-paper-200/80">new files</span>{" "}
+      <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
+        Upload extra documents or screenshots for this run. Only the <span className="text-paper-200/95">new files</span>{" "}
         are reprocessed by your AI provider — existing line items and requirements are kept, and the
         specification sheet + RFQ email are rebuilt from the combined set.
       </p>
@@ -77,7 +77,7 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
             input.click();
           }}
           disabled={busy}
-          className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 font-mono text-xs text-paper-200/80 transition hover:border-amber/50 hover:text-amber disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 font-mono text-xs text-paper-200/95 transition hover:border-rose/50 hover:text-rose disabled:cursor-not-allowed disabled:opacity-50"
         >
           + choose files
         </button>
@@ -85,10 +85,10 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
         {files.map((f) => (
           <span
             key={f.name}
-            className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/80"
+            className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/95"
           >
             <span className="max-w-[200px] truncate">{f.name}</span>
-            <span className="text-paper-200/40">{formatBytes(f.size)}</span>
+            <span className="text-paper-200/80">{formatBytes(f.size)}</span>
           </span>
         ))}
       </div>
@@ -97,7 +97,7 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
         type="button"
         onClick={add}
         disabled={busy || !files.length}
-        className="mt-3 rounded-lg bg-amber px-4 py-2 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-3 rounded-lg bg-maroon px-4 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? "PROCESSING…" : "Add & reprocess"}
       </button>

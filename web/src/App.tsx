@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthError,
   createJob,
@@ -13,6 +13,9 @@ import {
 import AddFiles from "./components/AddFiles";
 import AdminHistory from "./components/AdminHistory";
 import AiSettings from "./components/AiSettings";
+import ClientContractorWorkspace from "./components/ClientContractorWorkspace";
+import Dashboard from "./components/Dashboard";
+import DynaBrand from "./components/DynaBrand";
 import DropZone from "./components/DropZone";
 import HistorySidebar from "./components/HistorySidebar";
 import JobPanel from "./components/JobPanel";
@@ -20,9 +23,6 @@ import Login from "./components/Login";
 import Results from "./components/Results";
 import RfqEmails from "./components/RfqEmails";
 import SettingsPanel, { parseSkipList } from "./components/SettingsPanel";
-import SupplierDirectory from "./components/SupplierDirectory";
-import QuickSupplierSearch from "./components/QuickSupplierSearch";
-import SupplierPanel from "./components/SupplierPanel";
 import UsersAdmin from "./components/UsersAdmin";
 import VersionsAudit from "./components/VersionsAudit";
 import type { AuthUser, HistoryItem, Job, QuotaStatus } from "./types";
@@ -34,21 +34,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Sections always shown on the homepage. */
-const BASE_TABS = [
-  { id: "pipeline", label: "pipeline" },
-  { id: "directory", label: "supplier list" },
-  { id: "suppliers", label: "supplier search" },
-  { id: "quicksearch", label: "supplier by name" },
-] as const;
-
-/** Extra sections that only appear once a saved project is opened. */
-const PROJECT_TABS = [{ id: "emails", label: "quotation email" }] as const;
-
-type TabId =
-  | (typeof BASE_TABS)[number]["id"]
-  | (typeof PROJECT_TABS)[number]["id"]
-  | "settings";
+type TabId = "dashboard" | "pipeline" | "directory" | "emails" | "settings";
 
 /** Human labels for AI providers, used by the API-key setup wall. */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -71,27 +57,47 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem("procurement-sidebar-collapsed") !== "false",
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [includeImages, setIncludeImages] = useState(true);
   const [skipFiles, setSkipFiles] = useState("");
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
-  const [tab, setTab] = useState<TabId>("pipeline");
+  const [tab, setTab] = useState<TabId>("dashboard");
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [directorySearchSeed, setDirectorySearchSeed] = useState("");
+  const globalSearchRef = useRef<HTMLInputElement>(null);
   // When a saved project is opened from history, reveal the extra navbar
   // sections (supplier search, quotation email) and the per-run panels.
   const [projectView, setProjectView] = useState(false);
 
-  // Tabs shown in the navbar: the two homepage sections, plus the project-only
-  // sections when a saved project is open, plus the admin-only users section.
-  const tabs = [
-    ...BASE_TABS,
-    ...(projectView ? PROJECT_TABS : []),
-    { id: "settings", label: "settings" } as const,
-  ];
-
   // Total size of the selected files, shown in the file summary bar.
   const totalSize = useMemo(() => files.reduce((sum, f) => sum + f.size, 0), [files]);
   const running = busy || pollId != null;
+
+  useEffect(() => {
+    localStorage.setItem("procurement-sidebar-collapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        globalSearchRef.current?.focus();
+        setSearchOpen(true);
+      }
+      if (event.key === "Escape") {
+        setSearchOpen(false);
+        setProfileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
 
   // Every account must save its own AI key before using the system. Supplier
   // search pinned to Gemini additionally needs a personal Gemini key.
@@ -106,7 +112,14 @@ export default function App() {
   }, [user, activeProvider]);
   const needsSetup = !!user && missingProviders.length > 0;
   // Reading saved suppliers needs no AI key; only AI work (jobs/search) does.
-  const canBrowseWithoutKey = tab === "directory" || tab === "suppliers" || tab === "quicksearch";
+  const canBrowseWithoutKey = tab === "dashboard" || tab === "directory";
+  const reportError = useCallback((message: string) => setError(message), []);
+  const matchingHistory = useMemo(() => {
+    const query = globalSearch.trim().toLowerCase();
+    return query
+      ? history.filter((item) => `${item.title} ${item.subtitle}`.toLowerCase().includes(query)).slice(0, 4)
+      : [];
+  }, [history, globalSearch]);
 
   /** Reload the saved-run history from the backend. */
   const loadHistory = useCallback(async () => {
@@ -238,6 +251,7 @@ export default function App() {
     try {
       setJob(await getJob(id));
       setProjectView(true);
+      setTab("pipeline");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -278,7 +292,7 @@ export default function App() {
     setSkipFiles("");
     setSidebarOpen(false);
     setProjectView(false);
-    setTab("pipeline");
+    setTab("dashboard");
   };
 
   /** Sign out: clear the session cookie and reset app state. */
@@ -293,7 +307,7 @@ export default function App() {
     setJob(null);
     setFiles([]);
     setProjectView(false);
-    setTab("pipeline");
+    setTab("dashboard");
   };
 
   const done = job?.status === "done";
@@ -302,7 +316,7 @@ export default function App() {
   if (!authChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-grid">
-        <p className="font-mono text-xs text-paper-200/50">checking session…</p>
+        <p className="font-mono text-xs text-paper-200/85">checking session…</p>
       </div>
     );
   }
@@ -315,10 +329,15 @@ export default function App() {
       <HistorySidebar
         items={history}
         activeId={job?.id ?? null}
+        activeTab={tab}
         loading={historyLoading}
         open={sidebarOpen}
+        collapsed={sidebarCollapsed}
         running={running}
+        projectView={projectView}
         onClose={() => setSidebarOpen(false)}
+        onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        onNavigate={setTab}
         onNew={startNew}
         onSelect={openHistory}
         onDelete={removeHistory}
@@ -326,97 +345,160 @@ export default function App() {
       />
 
       <div className="min-w-0 flex-1">
-        {/* Top navbar: brand, section tabs and live quota badge. */}
-        <header className="sticky top-0 z-30 border-b border-ink-800/80 bg-space-950/45 backdrop-blur-xl">
-          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 pt-3">
-            <div className="flex items-center gap-3 font-mono text-sm">
+        <header className="sticky top-0 z-30 border-b border-ink-700/80 bg-space-950/85 backdrop-blur-xl">
+          <div className="flex min-h-[68px] items-center justify-between gap-4 px-4 sm:px-6">
+            <div className="flex min-w-0 items-center gap-4">
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="flex h-7 w-7 items-center justify-center rounded border border-ink-700 text-paper-200/60 transition hover:border-amber/50 hover:text-amber md:hidden"
-                title="Open history"
+                className="flex h-7 w-7 items-center justify-center rounded border border-ink-700 text-paper-200/90 transition hover:border-rose/50 hover:text-rose md:hidden"
+                title="Open navigation"
+                aria-label="Open navigation"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M3 6h18M3 12h18M3 18h18" />
                 </svg>
               </button>
-              <span className="text-amber">▮</span>
-              <span className="font-semibold tracking-tight text-paper-50">automate</span>
-              <span className="text-paper-200/40">//</span>
-              <span className="text-paper-200/70">procurement</span>
+              <DynaBrand />
+              <div className="relative hidden w-[min(34vw,360px)] lg:block">
+                <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-paper-200/55" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+                <input
+                  ref={globalSearchRef}
+                  value={globalSearch}
+                  onFocus={() => setSearchOpen(true)}
+                  onChange={(event) => {
+                    setGlobalSearch(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      if (matchingHistory[0]) {
+                        void openHistory(matchingHistory[0].id);
+                      } else {
+                        setDirectorySearchSeed(globalSearch);
+                        setTab("directory");
+                      }
+                      setSearchOpen(false);
+                    }
+                  }}
+                  placeholder="Search anything..."
+                  aria-label="Global search (Ctrl + K)"
+                  className="h-9 w-full rounded-lg border border-ink-700 bg-ink-950/80 py-2 pl-9 pr-16 font-sans text-xs text-paper-50 outline-none transition focus:border-red/70 focus:ring-2 focus:ring-red/10"
+                />
+                <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded border border-ink-700 px-1.5 py-0.5 font-mono text-[9px] text-paper-200/50">
+                  Ctrl + K
+                </kbd>
+                {searchOpen && globalSearch.trim() && (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 p-1.5 shadow-2xl shadow-black/50">
+                    {matchingHistory.map((item) => (
+                      <button
+                        key={item.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setGlobalSearch("");
+                          void openHistory(item.id);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition hover:bg-ink-800"
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-teal" />
+                        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-paper-50">{item.title}</span>
+                        <span className="font-mono text-[9px] text-paper-200/50">saved run</span>
+                      </button>
+                    ))}
+                    <button
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setDirectorySearchSeed(globalSearch);
+                        setTab("directory");
+                        setSearchOpen(false);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-mono text-[11px] text-paper-200/80 transition hover:bg-ink-800 hover:text-paper-50"
+                    >
+                      <span className="text-red">↳</span>
+                      Search the Client / Contractor List
+                    </button>
+                    {matchingHistory.length === 0 && (
+                      <p className="px-3 py-2 font-mono text-[10px] text-paper-200/50">No saved runs match. Search the directory instead.</p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2 font-mono text-[11px] text-paper-200/50">
-              <span className="hidden items-center gap-1.5 sm:flex">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <button
+                onClick={startNew}
+                disabled={running}
+                className="hidden rounded-lg bg-maroon px-3 py-2 font-sans text-xs font-semibold text-paper-50 shadow-lg shadow-red/10 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
+              >
+                + New Project
+              </button>
+              <span className="hidden items-center gap-2 rounded-full border border-teal/20 bg-teal/5 px-3 py-1.5 font-mono text-[10px] text-paper-200/80 xl:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-teal animate-pulse-dot" />
                 ai vision pipeline
-                <span className="text-paper-200/25">·</span>
               </span>
               <a
                 href={quota?.link ?? "https://ai.dev/rate-limit"}
                 target="_blank"
                 rel="noreferrer"
-                title={
-                  quota?.detail ??
-                  (quota?.state === "unknown"
-                    ? "Quota not checked yet — run a supplier search"
-                    : "Gemini grounding quota (last check)")
-                }
-                className="flex items-center gap-1.5 transition hover:text-paper-100"
+                title={quota?.detail ?? "Gemini grounding quota (last check)"}
+                className="hidden items-center gap-2 rounded-full border border-danger/20 bg-danger/5 px-3 py-1.5 font-mono text-[10px] text-paper-200/80 lg:flex"
               >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    quota?.state === "exhausted"
-                      ? "bg-danger"
-                      : quota?.state === "ok"
-                        ? "bg-teal"
-                        : "bg-paper-200/30"
-                  }`}
-                />
-                quota:{" "}
-                {!quota
-                  ? "…"
-                  : quota.state === "unknown"
-                    ? "not checked"
-                    : quota.state}
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  quota?.state === "ok" ? "bg-teal" : quota?.state === "exhausted" ? "bg-danger" : "bg-paper-200/40"
+                }`} />
+                quota: {!quota ? "…" : quota.state === "unknown" ? "not checked" : quota.state}
               </a>
-              <span className="text-paper-200/25">·</span>
-              <span
-                className="hidden max-w-[160px] truncate text-paper-200/70 sm:inline"
-                title={`${user.display_name || user.username} (${user.role})`}
-              >
-                {user.display_name || user.username}
-                {user.role === "admin" && <span className="text-amber/70"> · admin</span>}
-              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setProfileOpen((open) => !open)}
+                  aria-expanded={profileOpen}
+                  aria-label="Open profile menu"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-ink-800"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 bg-ink-900 text-paper-200/80">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="8" r="3" /><path d="M5 20a7 7 0 0 1 14 0" />
+                    </svg>
+                  </span>
+                  <span className="hidden max-w-[120px] truncate font-mono text-[10px] text-paper-200/85 md:inline">
+                    {user.username} · {user.role}
+                  </span>
+                  <svg className="h-3 w-3 text-paper-200/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                    <path d="m7 10 5 5 5-5" />
+                  </svg>
+                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-ink-700 bg-ink-900 p-3 shadow-2xl shadow-black/50">
+                    <p className="truncate font-sans text-xs font-semibold text-paper-50">{user.display_name || user.username}</p>
+                    <p className="mt-1 font-mono text-[10px] text-paper-200/55">{user.username} · {user.role}</p>
+                    <button
+                      onClick={() => {
+                        setTab("settings");
+                        setProfileOpen(false);
+                      }}
+                      className="mt-3 w-full rounded-md border border-ink-700 px-2 py-1.5 text-left font-mono text-[10px] text-paper-200/80 transition hover:border-red/50 hover:text-paper-50"
+                    >
+                      Account settings
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={signOut}
-                className="rounded border border-ink-700 px-2 py-0.5 transition hover:border-danger/50 hover:text-danger"
+                className="rounded-lg border border-ink-700 px-2.5 py-1.5 font-mono text-[10px] text-paper-200/80 transition hover:border-danger/50 hover:text-danger"
                 title="Sign out"
               >
-                sign out
+                Sign Out
               </button>
             </div>
           </div>
-
-          <nav className="mx-auto max-w-4xl px-6">
-            <ul className="-mb-px flex gap-6 overflow-x-auto font-mono text-xs uppercase tracking-widest">
-              {tabs.map((t) => (
-                <li key={t.id}>
-                  <button
-                    onClick={() => setTab(t.id)}
-                    className={`flex items-center gap-1.5 border-b-2 py-3 transition ${
-                      tab === t.id
-                        ? "border-amber text-amber"
-                        : "border-transparent text-paper-200/50 hover:text-paper-100"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </nav>
         </header>
 
-        <div className="mx-auto max-w-4xl px-6 py-10">
+        <div className="w-full px-4 py-4 sm:px-6 lg:px-8">
           {error && (
             <div className="mb-5 rounded-xl border border-danger/30 bg-danger/5 p-4 font-mono text-xs text-danger">
               {error}
@@ -425,14 +507,14 @@ export default function App() {
 
           {/* ── setup wall: blocks the app until a personal AI key exists ── */}
           {needsSetup && !canBrowseWithoutKey && tab !== "settings" && (
-            <section className="rounded-2xl border border-amber/30 bg-amber/5 p-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">
+            <section className="rounded-2xl border border-rose/30 bg-rose/5 p-6">
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">
                 Setup required
               </p>
               <h1 className="mt-3 font-mono text-2xl font-semibold leading-tight text-paper-50 sm:text-3xl">
                 Add your API key first.
               </h1>
-              <p className="mt-3 max-w-xl font-sans text-sm leading-relaxed text-paper-200/70">
+              <p className="mt-3 max-w-xl font-sans text-sm leading-relaxed text-paper-200/90">
                 Every account must connect its own AI API key before running jobs or supplier
                 searches. You still need a key for{" "}
                 <span className="text-paper-50">
@@ -442,23 +524,42 @@ export default function App() {
               </p>
               <button
                 onClick={() => setTab("settings")}
-                className="mt-5 rounded-lg bg-amber px-5 py-2.5 font-mono text-sm font-semibold text-space-950 transition hover:bg-amber-light"
+                className="mt-5 rounded-lg bg-maroon px-5 py-2.5 font-mono text-sm font-semibold text-paper-50 transition hover:bg-maroon-light"
               >
                 GO TO SETTINGS
               </button>
             </section>
           )}
 
+          <section className={tab === "dashboard" ? "" : "hidden"}>
+            <Dashboard
+              history={history}
+              job={job}
+              running={running}
+              onFiles={(incoming) => {
+                onFiles(incoming);
+                setTab("pipeline");
+              }}
+              onNewRun={startNew}
+              onOpenDirectory={(query) => {
+                setDirectorySearchSeed(query ?? "");
+                setTab("directory");
+              }}
+              onOpenPipeline={() => setTab("pipeline")}
+              onError={reportError}
+            />
+          </section>
+
           {/* ── 01 · pipeline: upload, run, results ─────────────────────── */}
           <section className={tab === "pipeline" && !needsSetup ? "" : "hidden"}>
             <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Section 01 / 02 — Pipeline</p>
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Section 01 / 02 — Pipeline</p>
               <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
                 Drop an ITB folder.
                 <br />
                 Get a spec sheet.
               </h1>
-              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
+              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
                 Upload your Invitation To Bid documents and screenshots. Everything runs in the background —
                 PDFs, Word / Excel files and images are read, line items are separated from requirements by your AI provider, and a
                 formatted RFQ specification sheet comes out the other side.
@@ -470,11 +571,11 @@ export default function App() {
             {files.length > 0 && (
               <div className="mt-5 rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
                 <div className="flex items-center justify-between">
-                  <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">
+                  <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">
                     {files.length} file{files.length === 1 ? "" : "s"} · {formatBytes(totalSize)}
                   </p>
                   <button
-                    className="font-mono text-xs text-paper-200/50 transition hover:text-danger"
+                    className="font-mono text-xs text-paper-200/85 transition hover:text-danger"
                     onClick={() => {
                       setFiles([]);
                       setJob(null);
@@ -490,10 +591,10 @@ export default function App() {
                   {files.map((f) => (
                     <li
                       key={f.name}
-                      className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/80"
+                      className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/95"
                     >
                       <span className="max-w-[240px] truncate">{f.name}</span>
-                      <span className="text-paper-200/40">{formatBytes(f.size)}</span>
+                      <span className="text-paper-200/80">{formatBytes(f.size)}</span>
                     </li>
                   ))}
                 </ul>
@@ -506,13 +607,13 @@ export default function App() {
                 />
 
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-                  <label className="flex items-center gap-2 font-mono text-xs text-paper-200/70">
+                  <label className="flex items-center gap-2 font-mono text-xs text-paper-200/90">
                     <input
                       type="checkbox"
                       checked={includeImages}
                       onChange={(e) => setIncludeImages(e.target.checked)}
                       disabled={running}
-                      className="h-4 w-4 accent-[var(--color-amber)]"
+                      className="h-4 w-4 accent-[var(--color-rose)]"
                     />
                     read images &amp; screenshots with AI vision
                   </label>
@@ -520,7 +621,7 @@ export default function App() {
                   <button
                     onClick={process}
                     disabled={running}
-                    className="rounded-lg bg-amber px-6 py-2.5 font-mono text-sm font-semibold text-space-950 transition hover:bg-amber-light disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-maroon px-6 py-2.5 font-mono text-sm font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {running ? "PROCESSING…" : "RUN PIPELINE"}
                   </button>
@@ -540,68 +641,26 @@ export default function App() {
             )}
           </section>
 
-          {/* ── 02 · supplier list (master directory) ───────────────────── */}
+          {/* ── Client / contractor directory workspace ─────────────────── */}
           <section className={tab === "directory" ? "" : "hidden"}>
-            <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Section 02 / 02 — Supplier List</p>
-              <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
-                Your supplier directory.
-              </h1>
-              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
-                Add suppliers by hand or import a run's shortlist. This master list is saved on the
-                server and stays available for every future ITB, no matter which run you have open.
-              </p>
-            </section>
-
-            <SupplierDirectory job={job} user={user} onError={(msg) => setError(msg)} />
-          </section>
-
-          {/* ── 03 · supplier search (project) ──────────────────────────── */}
-          <section className={tab === "suppliers" ? "" : "hidden"}>
-            <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Project — Supplier Search</p>
-              <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
-                Shortlist suppliers.
-              </h1>
-              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
-                Run a live web search per line item (or one shared list for everything) to find vendors,
-                websites and contact emails. Export the shortlist as a CSV when you are done.
-              </p>
-            </section>
-
-            {done ? (
-              <div className="space-y-4">
-                {needsSetup && (
-                  <div className="rounded-xl border border-amber/30 bg-amber/5 p-4 font-mono text-xs text-amber/80">
-                    You can review this project's suppliers now. Add your API key in{" "}
-                    <button
-                      onClick={() => setTab("settings")}
-                      className="underline decoration-amber/40 underline-offset-2 hover:text-amber"
-                    >
-                      settings
-                    </button>{" "}
-                    to run new searches.
-                  </div>
-                )}
-                <SupplierPanel job={job} onError={(msg) => setError(msg)} onUpdated={setJob} />
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-ink-700 bg-ink-900/40 p-8 text-center">
-                <p className="font-mono text-xs text-paper-200/50">
-                  This project's pipeline must be finished before supplier search unlocks.
-                </p>
-              </div>
-            )}
+            <ClientContractorWorkspace
+              active={tab === "directory"}
+              job={job}
+              user={user}
+              initialQuery={directorySearchSeed}
+              onError={reportError}
+              onUpdated={setJob}
+            />
           </section>
 
           {/* ── 04 · quotation email (project) ──────────────────────────── */}
           <section className={tab === "emails" && !needsSetup ? "" : "hidden"}>
             <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Project — Quotation Email</p>
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Project — Quotation Email</p>
               <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
                 Copy-ready RFQ emails.
               </h1>
-              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
+              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
                 One quotation request email per line item, drafted from the extracted specs. Copy them
                 individually or grab all of them at once.
               </p>
@@ -611,36 +670,21 @@ export default function App() {
               <RfqEmails emails={job.result?.rfq_emails ?? []} />
             ) : (
               <div className="rounded-2xl border border-dashed border-ink-700 bg-ink-900/40 p-8 text-center">
-                <p className="font-mono text-xs text-paper-200/50">
+                <p className="font-mono text-xs text-paper-200/85">
                   This project's pipeline must be finished before quotation emails are generated.
                 </p>
               </div>
             )}
           </section>
 
-            {/* ── 05 · supplier by name (standalone) ─────────────────────── */}
-            <section className={tab === "quicksearch" ? "" : "hidden"}>
-              <section className="pb-8 pt-6">
-                <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Standalone — Supplier By Name</p>
-                <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
-                  Find suppliers by item name.
-                </h1>
-                <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
-                  Insert only the item name; the system searches the web and returns suppliers with websites,
-                  contacts and emails. Save any result to your supplier list.
-                </p>
-              </section>
-              <QuickSupplierSearch onError={(msg) => setError(msg)} />
-            </section>
-
             {/* ── 06 · settings (per-user AI provider/key/model, admin: users) ── */}
           <section className={tab === "settings" ? "" : "hidden"}>
             <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Settings — AI</p>
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Settings — AI</p>
               <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
                 Your AI, your choice.
               </h1>
-              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
+              <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
                 Connect your own Gemini, OpenAI or Anthropic API key so your runs use your quota,
                 and choose which provider and model reads your ITBs. Keys are stored on the server
                 for your account and never shown back in full.
@@ -663,11 +707,11 @@ export default function App() {
             {user.role === "admin" && (
               <section className="mt-12">
                 <section className="pb-6 pt-6">
-                  <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">Admin — Users</p>
+                  <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Admin — Users</p>
                   <h2 className="mt-3 font-mono text-2xl font-semibold leading-tight text-paper-50 sm:text-3xl">
                     Manage accounts.
                   </h2>
-                  <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
+                  <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
                     Create accounts for your team, reset passwords, and remove users. This section is
                     visible to admins only.
                   </p>
@@ -677,13 +721,13 @@ export default function App() {
 
                 <section className="mt-12">
                   <section className="pb-6 pt-6">
-                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-amber/80">
+                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">
                       Admin — User history
                     </p>
                     <h2 className="mt-3 font-mono text-2xl font-semibold leading-tight text-paper-50 sm:text-3xl">
                       Every run, every user.
                     </h2>
-                    <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/70">
+                    <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
                       This is the activity of every account on the server, grouped by user. It is
                       kept separate from your own history rail, which only ever shows the runs of
                       the account you are signed in as.
@@ -696,9 +740,6 @@ export default function App() {
             )}
           </section>
 
-          <footer className="mt-16 border-t border-ink-800 pt-4 font-mono text-[11px] text-paper-200/40">
-            automate // procurement · local pipeline · powered by Gemini, OpenAI & Anthropic
-          </footer>
         </div>
       </div>
     </div>

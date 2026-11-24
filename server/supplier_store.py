@@ -16,7 +16,7 @@ DATA_ROOT = Path("./data")
 STORE_PATH = DATA_ROOT / "suppliers.json"
 
 # Order of the user-editable text fields; used to normalise incoming payloads.
-_FIELDS = ("company_name", "website", "email", "contact", "source", "notes", "tags")
+_FIELDS = ("company_name", "business_scope", "website", "email", "contact", "source", "notes", "tags")
 
 
 def _now() -> str:
@@ -38,7 +38,9 @@ class SupplierStore:
     def _read(self) -> List[Dict]:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
-            return raw if isinstance(raw, list) else []
+            if not isinstance(raw, list):
+                return []
+            return [self._normalise(item, base=item) for item in raw if isinstance(item, dict)]
         except Exception:
             return []
 
@@ -57,6 +59,7 @@ class SupplierStore:
             if field in payload:
                 item[field] = _clean(payload.get(field))
         item.setdefault("company_name", "")
+        item.setdefault("business_scope", "")
         item.setdefault("website", "")
         item.setdefault("email", "")
         item.setdefault("contact", "")

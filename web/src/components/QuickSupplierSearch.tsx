@@ -2,7 +2,13 @@ import { useState } from "react";
 import { createSupplier, searchSuppliersByName } from "../api";
 import type { Supplier } from "../types";
 
-export default function QuickSupplierSearch({ onError }: { onError: (msg: string) => void }) {
+export default function QuickSupplierSearch({
+  onError,
+  onSaved,
+}: {
+  onError: (msg: string) => void;
+  onSaved?: () => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,6 +38,7 @@ export default function QuickSupplierSearch({ onError }: { onError: (msg: string
     try {
       await createSupplier({
         company_name: s.company_name ?? "",
+        business_scope: description.trim(),
         website: s.website ?? "",
         email: s.email ?? "",
         contact: s.contact ?? "",
@@ -40,6 +47,7 @@ export default function QuickSupplierSearch({ onError }: { onError: (msg: string
         tags: "",
       });
       setSavedKeys((prev) => new Set(prev).add(idx));
+      onSaved?.();
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     }
@@ -49,7 +57,7 @@ export default function QuickSupplierSearch({ onError }: { onError: (msg: string
     <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-6">
       <form onSubmit={run} className="space-y-3">
         <div>
-          <label className="font-mono text-xs uppercase tracking-wide text-paper-200/50">Item name</label>
+          <label className="font-mono text-xs uppercase tracking-wide text-paper-200/85">Item name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -58,7 +66,7 @@ export default function QuickSupplierSearch({ onError }: { onError: (msg: string
           />
         </div>
         <div>
-          <label className="font-mono text-xs uppercase tracking-wide text-paper-200/50">Description (optional)</label>
+          <label className="font-mono text-xs uppercase tracking-wide text-paper-200/85">Description (optional)</label>
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -69,71 +77,80 @@ export default function QuickSupplierSearch({ onError }: { onError: (msg: string
         <button
           type="submit"
           disabled={loading || !name.trim()}
-          className="rounded-lg bg-amber px-5 py-2.5 font-mono text-xs font-semibold text-space-950 disabled:opacity-50"
+          className="rounded-lg bg-maroon px-5 py-2.5 font-mono text-xs font-semibold text-paper-50 disabled:opacity-50"
         >
           {loading ? "SEARCHING…" : "FIND SUPPLIERS"}
         </button>
       </form>
 
       {suppliers.length > 0 && (
-        <ul className="mt-5 divide-y divide-ink-800">
-          {suppliers.map((s, i) => (
-            <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 font-mono text-xs">
-              <span className="w-52 shrink-0 truncate text-paper-50" title={s.company_name}>
-                {s.company_name}
-              </span>
-              {s.website ? (
-                <a
-                  href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-48 shrink-0 truncate text-amber/80 underline-offset-2 hover:underline"
-                >
-                  {s.website.replace(/^https?:\/\//, "")}
-                </a>
-              ) : (
-                <span className="w-48 shrink-0 truncate text-paper-200/30">—</span>
-              )}
-              {s.email ? (
-                <a href={`mailto:${s.email}`} className="w-52 shrink-0 truncate text-paper-200/80">
-                  {s.email}
-                </a>
-              ) : (
-                <span className="w-52 shrink-0 truncate text-paper-200/30">
-                  {s.contact ? s.contact : "— verify before use"}
-                </span>
-              )}
-              {s.source && (
-                <a
-                  href={s.source}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-auto shrink-0 text-[10px] text-paper-200/40 underline-offset-2 hover:text-amber hover:underline"
-                >
-                  source ›
-                </a>
-              )}
-              <button
-                onClick={() => save(i, s)}
-                disabled={savedKeys.has(i)}
-                className={[
-                  "shrink-0 rounded border px-2 py-0.5 font-mono text-[10px] transition",
-                  savedKeys.has(i)
-                    ? "border-teal/40 text-teal"
-                    : "border-ink-600 text-paper-200/50 hover:border-amber/50 hover:text-amber",
-                ].join(" ")}
-              >
-                {savedKeys.has(i) ? "saved ✓" : "+ list"}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-5 max-h-[60vh] overflow-auto rounded-xl border border-ink-800 bg-[#16181E]">
+          <table className="w-full min-w-[620px] border-collapse text-left">
+            <thead className="sticky top-0 bg-[#12141A] font-mono text-[10px] uppercase tracking-wider text-paper-200/75">
+              <tr>
+                <th className="px-3 py-3">ID</th>
+                <th className="px-3 py-3">NAME</th>
+                <th className="px-3 py-3">BUSINESS / SCOPE + CONTACT</th>
+                <th className="px-3 py-3">SOURCE / ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5 font-mono text-xs">
+              {suppliers.map((s, i) => (
+                <tr key={`${s.company_name}-${i}`} className="transition-colors hover:bg-white/[0.04]">
+                  <td className="px-3 py-3 text-paper-200/60">{i + 1}</td>
+                  <td className="px-3 py-3 font-semibold text-paper-50">{s.company_name || "—"}</td>
+                  <td className="px-3 py-3 text-paper-200/85">
+                    <div>{description || itemName}</div>
+                    <div className="mt-1 flex gap-3 text-[10px] text-paper-200/65">
+                      {s.contact && <span>{s.contact}</span>}
+                      {s.email && <a href={`mailto:${s.email}`} className="hover:text-paper-50">{s.email}</a>}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3">
+                    {s.source && (
+                      <a
+                        href={s.source}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block max-w-36 truncate text-[10px] text-rose/80 hover:underline"
+                      >
+                        source
+                      </a>
+                    )}
+                    {s.website && (
+                      <a
+                        href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block max-w-36 truncate text-[10px] text-paper-200/65 hover:text-paper-50"
+                      >
+                        {s.website.replace(/^https?:\/\//, "")}
+                      </a>
+                    )}
+                    <button
+                      onClick={() => save(i, s)}
+                      disabled={savedKeys.has(i)}
+                      className={[
+                        "mt-1 rounded border px-2 py-1 font-mono text-[10px] transition",
+                        savedKeys.has(i)
+                          ? "border-teal/40 text-teal"
+                          : "border-ink-600 text-paper-200/85 hover:border-rose/50 hover:text-rose",
+                      ].join(" ")}
+                    >
+                      {savedKeys.has(i) ? "appended ✓" : "+ append"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {!loading && suppliers.length === 0 && itemName && (
-        <p className="mt-4 font-mono text-xs text-paper-200/50">No suppliers found.</p>
+        <p className="mt-4 font-mono text-xs text-paper-200/85">No suppliers found.</p>
       )}
       {backend && suppliers.length > 0 && (
-        <p className="mt-3 font-mono text-[10px] text-paper-200/40">
+        <p className="mt-3 font-mono text-[10px] text-paper-200/80">
           via {backend === "web_search" ? "web search" : "live AI search"}
         </p>
       )}

@@ -99,8 +99,8 @@ export default function UsersAdmin({
     <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">User accounts</p>
-          <p className="mt-1 font-mono text-[11px] text-paper-200/40">
+          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">User accounts</p>
+          <p className="mt-1 font-mono text-[11px] text-paper-200/80">
             {users.length} account{users.length === 1 ? "" : "s"} · accounts are admin-created
           </p>
         </div>
@@ -114,31 +114,31 @@ export default function UsersAdmin({
 
       {/* Create form */}
       <div className="mt-4 rounded-xl border border-ink-700 bg-ink-800/40 p-4">
-        <p className="font-mono text-[10px] uppercase tracking-wide text-paper-200/50">add a user</p>
+        <p className="font-mono text-[10px] uppercase tracking-wide text-paper-200/85">add a user</p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="username"
-            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/25 focus:border-amber focus:outline-none"
+            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/70 focus:border-rose focus:outline-none"
           />
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="display name (optional)"
-            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/25 focus:border-amber focus:outline-none"
+            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/70 focus:border-rose focus:outline-none"
           />
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="password (min 8 chars)"
-            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/25 focus:border-amber focus:outline-none"
+            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 placeholder:text-paper-200/70 focus:border-rose focus:outline-none"
           />
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as "user" | "admin")}
-            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none"
+            className="rounded border border-ink-700 bg-ink-950/60 px-2.5 py-1.5 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none"
           >
             <option value="user">user</option>
             <option value="admin">admin</option>
@@ -148,7 +148,7 @@ export default function UsersAdmin({
           <button
             onClick={add}
             disabled={creating}
-            className="rounded-lg bg-amber px-5 py-2 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light disabled:opacity-50"
+            className="rounded-lg bg-maroon px-5 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light disabled:opacity-50"
           >
             {creating ? "CREATING…" : "+ CREATE USER"}
           </button>
@@ -157,7 +157,7 @@ export default function UsersAdmin({
 
       {/* List */}
       {loading ? (
-        <p className="mt-4 font-mono text-xs text-paper-200/40">loading…</p>
+        <p className="mt-4 font-mono text-xs text-paper-200/80">loading…</p>
       ) : (
         <ul className="mt-4 divide-y divide-ink-800">
           {users.map((u) => (
@@ -165,12 +165,12 @@ export default function UsersAdmin({
               <span className="w-40 shrink-0 truncate text-paper-50" title={u.username}>
                 {u.username}
               </span>
-              <span className="w-40 shrink-0 truncate text-paper-200/60" title={u.display_name}>
+              <span className="w-40 shrink-0 truncate text-paper-200/90" title={u.display_name}>
                 {u.display_name || "—"}
               </span>
               <span
                 className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-                  u.role === "admin" ? "border-amber/40 text-amber" : "border-ink-600 text-paper-200/50"
+                  u.role === "admin" ? "border-rose/40 text-rose" : "border-ink-600 text-paper-200/85"
                 }`}
               >
                 {u.role}
@@ -182,7 +182,7 @@ export default function UsersAdmin({
                 <button
                   onClick={() => resetPassword(u)}
                   disabled={busyId === u.id}
-                  className="rounded border border-ink-600 px-3 py-1 text-[11px] text-paper-200/60 transition hover:border-amber/50 hover:text-amber disabled:opacity-50"
+                  className="rounded border border-ink-600 px-3 py-1 text-[11px] text-paper-200/90 transition hover:border-rose/50 hover:text-rose disabled:opacity-50"
                 >
                   reset password
                 </button>
@@ -190,7 +190,7 @@ export default function UsersAdmin({
                   onClick={() => remove(u)}
                   disabled={busyId === u.id || u.id === currentUser.id}
                   title={u.id === currentUser.id ? "You cannot delete your own account" : "Delete user"}
-                  className="rounded border border-ink-600 px-3 py-1 text-[11px] text-paper-200/60 transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded border border-ink-600 px-3 py-1 text-[11px] text-paper-200/90 transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   delete
                 </button>

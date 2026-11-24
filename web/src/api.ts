@@ -280,6 +280,21 @@ export async function importSuppliers(drafts: SupplierDraft[]): Promise<Supplier
   return (await res.json()) as SupplierImportResult;
 }
 
+/** Parse uploaded documents into supplier rows for review before import. */
+export async function parseSupplierFiles(files: File[]): Promise<SupplierDraft[]> {
+  const form = new FormData();
+  for (const file of files) {
+    form.append("files", file, file.name);
+  }
+  const res = await request(`${BASE}/suppliers/parse`, { method: "POST", body: form });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Failed to parse supplier files (${res.status}): ${detail}`);
+  }
+  const data = (await res.json()) as { suppliers: SupplierDraft[] };
+  return data.suppliers ?? [];
+}
+
 /* --------------------------------------------------------------- auth */
 
 /** Sign in with a username/password; sets the session cookie on success. */

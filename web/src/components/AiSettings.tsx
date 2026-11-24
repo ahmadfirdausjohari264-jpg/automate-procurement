@@ -106,7 +106,7 @@ export default function AiSettings({
   };
 
   if (loading || !settings || !active) {
-    return <p className="font-mono text-xs text-paper-200/40">loading…</p>;
+    return <p className="font-mono text-xs text-paper-200/80">loading…</p>;
   }
 
   const defaultModel = active.default_model;
@@ -124,7 +124,7 @@ export default function AiSettings({
           </span>
           <span className="font-mono text-sm text-teal">
             {active.label} · {active.model || `default (${defaultModel})`}
-            <span className="text-paper-200/50">
+            <span className="text-paper-200/85">
               {" "}· suppliers {supplierSearchOn ? `on ${active.label}` : "on Gemini"}
             </span>
           </span>
@@ -134,15 +134,15 @@ export default function AiSettings({
       {/* ── provider ─────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">
+          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">
             ai provider
           </p>
-          <span className="font-mono text-[11px] text-paper-200/40">
+          <span className="font-mono text-[11px] text-paper-200/80">
             {active.model ?? `default (${defaultModel})`}
           </span>
         </div>
 
-        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/50">
+        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
           Which AI reads your ITBs and searches suppliers: Google Gemini, OpenAI or Anthropic.
           Each provider keeps its own API key and model below.
         </p>
@@ -152,7 +152,7 @@ export default function AiSettings({
             value={active.id}
             onChange={(e) => changeProvider(e.target.value)}
             disabled={saving}
-            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             {settings.providers.map((p) => (
               <option key={p.id} value={p.id}>
@@ -166,17 +166,17 @@ export default function AiSettings({
       {/* ── API key for the selected provider ────────────────────── */}
       <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">
+          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">
             {active.id} api key
           </p>
           {active.has_api_key ? (
             <span className="font-mono text-[11px] text-teal">saved {active.api_key_hint}</span>
           ) : (
-            <span className="font-mono text-[11px] text-paper-200/40">not set</span>
+            <span className="font-mono text-[11px] text-paper-200/80">not set</span>
           )}
         </div>
 
-        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/50">
+        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
           Your {active.label} key is stored on the server for your account only and never sent
           back to the browser — you will only ever see a masked hint.{" "}
           {active.env_key_available
@@ -192,12 +192,12 @@ export default function AiSettings({
             disabled={saving}
             autoComplete="off"
             placeholder={active.has_api_key ? "paste a new key to replace…" : "API key…"}
-            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 placeholder:text-paper-200/30 focus:border-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 placeholder:text-paper-200/70 focus:border-rose focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           />
           <button
             onClick={saveKey}
             disabled={saving || keyInput.trim().length === 0}
-            className="rounded-lg bg-amber px-4 py-2 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-maroon px-4 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
           >
             {active.has_api_key ? "REPLACE" : "SAVE"}
           </button>
@@ -205,7 +205,7 @@ export default function AiSettings({
             <button
               onClick={clearKey}
               disabled={saving}
-              className="rounded-lg border border-ink-700 px-4 py-2 font-mono text-xs text-paper-200/70 transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-ink-700 px-4 py-2 font-mono text-xs text-paper-200/90 transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
             >
               CLEAR
             </button>
@@ -216,7 +216,7 @@ export default function AiSettings({
             href={active.key_url}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 inline-block font-mono text-[11px] text-paper-200/40 underline decoration-dotted transition hover:text-paper-100"
+            className="mt-2 inline-block font-mono text-[11px] text-paper-200/80 underline decoration-dotted transition hover:text-paper-100"
           >
             get an {active.label} API key ↗
           </a>
@@ -226,13 +226,13 @@ export default function AiSettings({
       {/* ── model for the selected provider ──────────────────────── */}
       <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
         <div className="flex items-center justify-between">
-          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">model</p>
-          <span className="font-mono text-[11px] text-paper-200/40">
+          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">model</p>
+          <span className="font-mono text-[11px] text-paper-200/80">
             {model.trim() || "default"}
           </span>
         </div>
 
-        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/50">
+        <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
           Which {active.label} model reads your ITB. Leave on the default unless you have a
           reason to change it; the backend also falls back to other models if this one is busy.
         </p>
@@ -242,7 +242,7 @@ export default function AiSettings({
             value={model.trim()}
             onChange={(e) => setModel(e.target.value)}
             disabled={saving}
-            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 focus:border-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-w-[240px] flex-1 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">default ({defaultModel})</option>
             {modelChoices.map((m) => (
@@ -254,12 +254,12 @@ export default function AiSettings({
           <button
             onClick={saveModel}
             disabled={saving}
-            className="rounded-lg border border-ink-700 px-4 py-2 font-mono text-xs text-paper-200/70 transition hover:border-amber/50 hover:text-paper-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-ink-700 px-4 py-2 font-mono text-xs text-paper-200/90 transition hover:border-rose/50 hover:text-paper-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             SAVE
           </button>
         </div>
-        <p className="mt-2 font-mono text-[11px] text-paper-200/40">
+        <p className="mt-2 font-mono text-[11px] text-paper-200/80">
           empty = use the default ({defaultModel})
         </p>
       </div>
@@ -268,10 +268,10 @@ export default function AiSettings({
       <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">
+            <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">
               supplier search
             </p>
-            <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/50">
+            <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
               {supplierSearchOn
                 ? `Supplier shortlisting also runs on ${active.label}, using its live web search and your key above.`
                 : "Supplier shortlisting stays on Google Gemini; your provider is only used for document classification."}
@@ -294,7 +294,7 @@ export default function AiSettings({
           </button>
         </div>
         {!usesGemini && !supplierSearchOn && (
-          <p className="mt-2 font-mono text-[11px] text-amber/80">
+          <p className="mt-2 font-mono text-[11px] text-rose/80">
             supplier search needs the shared Gemini key ({settings.providers.find((p) => p.id === "gemini")?.env_key ?? "GEMINI_API_KEY"})
           </p>
         )}

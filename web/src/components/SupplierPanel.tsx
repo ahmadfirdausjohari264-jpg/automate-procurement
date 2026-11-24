@@ -3,8 +3,8 @@ import { createSupplier, findSuppliers, getJob, suppliersCsvUrl } from "../api";
 import type { Job, ProductSuppliers, SupplierMode } from "../types";
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: "text-paper-200/50 border-ink-600",
-  searching: "text-amber border-amber/50",
+  pending: "text-paper-200/85 border-ink-600",
+  searching: "text-rose border-rose/50",
   done: "text-teal border-teal/50",
   error: "text-danger border-danger/50",
 };
@@ -108,6 +108,7 @@ export default function SupplierPanel({
     try {
       await createSupplier({
         company_name: supplier.company_name ?? "",
+        business_scope: "",
         website: supplier.website ?? "",
         email: supplier.email ?? "",
         contact: supplier.contact ?? "",
@@ -146,9 +147,9 @@ export default function SupplierPanel({
     <div className="rounded-2xl border border-ink-700 bg-ink-900/70 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/50">Supplier shortlist</p>
+          <p className="font-mono text-xs uppercase tracking-wide text-paper-200/85">Supplier shortlist</p>
           {started && doneAll && (
-            <p className="mt-1 font-mono text-[11px] text-paper-200/40">
+            <p className="mt-1 font-mono text-[11px] text-paper-200/80">
               {foundTotal} suppliers across {doneCount} product{doneCount === 1 ? "" : "s"} · live web search data
             </p>
           )}
@@ -157,7 +158,7 @@ export default function SupplierPanel({
           {doneAll && (
             <a
               href={suppliersCsvUrl(job.id)}
-              className="rounded-lg border border-ink-600 px-4 py-2 font-mono text-xs text-paper-200/70 transition hover:border-amber/50 hover:text-amber"
+              className="rounded-lg border border-ink-600 px-4 py-2 font-mono text-xs text-paper-200/90 transition hover:border-rose/50 hover:text-rose"
             >
               export CSV
             </a>
@@ -166,7 +167,7 @@ export default function SupplierPanel({
             onClick={() => onStart("per_item")}
             disabled={busy}
             title="Find a separate supplier list for each line item"
-            className="rounded-lg border border-ink-600 px-4 py-2.5 font-mono text-xs text-paper-200/70 transition hover:border-amber/50 hover:text-amber disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg border border-ink-600 px-4 py-2.5 font-mono text-xs text-paper-200/90 transition hover:border-rose/50 hover:text-rose disabled:cursor-not-allowed disabled:opacity-50"
           >
             {perItemLabel}
           </button>
@@ -174,7 +175,7 @@ export default function SupplierPanel({
             onClick={() => onStart("all")}
             disabled={busy}
             title="Find one supplier list and apply the same list to every item"
-            className="rounded-lg bg-amber px-5 py-2.5 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-maroon px-5 py-2.5 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "SEARCHING…" : allLabel}
           </button>
@@ -185,11 +186,11 @@ export default function SupplierPanel({
         <div className="mt-4">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-800">
             <div
-              className="h-full rounded-full bg-amber transition-all duration-500"
+              className="h-full rounded-full bg-maroon transition-all duration-500"
               style={{ width: `${doneCount === 0 ? 4 : Math.round((doneCount / rows.length) * 100)}%` }}
             />
           </div>
-          <p className="mt-2 font-mono text-[11px] text-paper-200/50">
+          <p className="mt-2 font-mono text-[11px] text-paper-200/85">
             Searching {doneCount}/{rows.length} products on Google…
           </p>
         </div>
@@ -221,13 +222,13 @@ export default function SupplierPanel({
               </span>
               {row.backend === "web_search" && (
                 <span
-                  className="rounded-full border border-amber/30 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-amber/80"
+                  className="rounded-full border border-rose/30 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-rose/80"
                   title="Live AI search was unavailable; found via normal web search"
                 >
                   web search
                 </span>
               )}
-              <span className="ml-auto font-mono text-[11px] text-paper-200/50">
+              <span className="ml-auto font-mono text-[11px] text-paper-200/85">
                 {row.suppliers?.length ?? 0} supplier{row.suppliers?.length === 1 ? "" : "s"}
               </span>
             </div>
@@ -236,7 +237,7 @@ export default function SupplierPanel({
               <p className="mt-2 font-mono text-xs text-danger">{row.message}</p>
             )}
             {row.status !== "error" && (
-              <p className="mt-2 font-mono text-[11px] text-paper-200/40">{row.message}</p>
+              <p className="mt-2 font-mono text-[11px] text-paper-200/80">{row.message}</p>
             )}
 
             {row.status === "done" && row.suppliers.length > 0 && (
@@ -251,20 +252,20 @@ export default function SupplierPanel({
                         href={s.website.startsWith("http") ? s.website : `https://${s.website}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-48 shrink-0 truncate text-amber/80 underline-offset-2 hover:underline"
+                        className="w-48 shrink-0 truncate text-rose/80 underline-offset-2 hover:underline"
                         title={s.website}
                       >
                         {s.website.replace(/^https?:\/\//, "")}
                       </a>
                     ) : (
-                      <span className="w-48 shrink-0 truncate text-paper-200/30">—</span>
+                      <span className="w-48 shrink-0 truncate text-paper-200/70">—</span>
                     )}
                     {s.email ? (
-                      <a href={`mailto:${s.email}`} className="w-52 shrink-0 truncate text-paper-200/80" title={s.email}>
+                      <a href={`mailto:${s.email}`} className="w-52 shrink-0 truncate text-paper-200/95" title={s.email}>
                         {s.email}
                       </a>
                     ) : (
-                      <span className="w-52 shrink-0 truncate text-paper-200/30" title="Verify before use">
+                      <span className="w-52 shrink-0 truncate text-paper-200/70" title="Verify before use">
                         {s.contact ? s.contact : "— verify before use"}
                       </span>
                     )}
@@ -273,7 +274,7 @@ export default function SupplierPanel({
                         href={s.source}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-auto shrink-0 text-[10px] text-paper-200/40 underline-offset-2 hover:text-amber hover:underline"
+                        className="ml-auto shrink-0 text-[10px] text-paper-200/80 underline-offset-2 hover:text-rose hover:underline"
                       >
                         source ›
                       </a>
@@ -286,7 +287,7 @@ export default function SupplierPanel({
                         "shrink-0 rounded border px-2 py-0.5 font-mono text-[10px] transition",
                         savedKeys.has(`${i}:${j}`)
                           ? "border-teal/40 text-teal"
-                          : "border-ink-600 text-paper-200/50 hover:border-amber/50 hover:text-amber",
+                          : "border-ink-600 text-paper-200/85 hover:border-rose/50 hover:text-rose",
                       ].join(" ")}
                     >
                       {savedKeys.has(`${i}:${j}`) ? "saved ✓" : "+ list"}

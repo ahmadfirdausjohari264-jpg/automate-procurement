@@ -16,7 +16,7 @@ ALLOWED_EXTENSIONS = frozenset({
     ".pdf", ".docx", ".xlsx", ".xlsm",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff",
 })
-_ZIP_EXTENSIONS = frozenset({".docx", ".xlsx", ".xlsm"})
+_ZIP_EXTENSIONS = frozenset({".docx", ".xlsx", ".xlsm", ".pptx"})
 
 _RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
@@ -48,7 +48,7 @@ MAX_ZIP_RATIO = _env_int("MAX_UPLOAD_ZIP_RATIO", 200)
 MAX_REQUEST_BYTES = MAX_TOTAL_BYTES + 10 * 1024 * 1024
 
 
-def _safe_name(raw: Optional[str]) -> str:
+def _safe_name(raw: Optional[str], allowed_extensions=ALLOWED_EXTENSIONS) -> str:
     """Return a safe base filename or raise a validation error."""
     name = (raw or "").replace("\\", "/").split("/")[-1].strip()
     name = "".join(ch for ch in name if ord(ch) >= 32 and ch != "\x7f").strip(" .")
@@ -56,8 +56,8 @@ def _safe_name(raw: Optional[str]) -> str:
         raise UploadValidationError("A file is missing a valid filename.")
 
     ext = Path(name).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
+    if ext not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
         raise UploadValidationError(
             f"Unsupported file type '{ext or name}'. Allowed types: {allowed}."
         )
@@ -93,6 +93,8 @@ def _signature_ok(path: Path, ext: str) -> bool:
         return head.startswith((b"II*\x00", b"MM\x00*"))
     if ext in _ZIP_EXTENSIONS:
         return head.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
+    if ext == ".csv":
+        return b"\x00" not in head
     return False
 
 
@@ -122,7 +124,8 @@ def _validate_content(path: Path, name: str) -> None:
 
 def save_uploads(files: Sequence, destination: Path,
                  existing_names: Optional[Iterable[str]] = None,
-                 allow_replace: bool = False) -> List[str]:
+                 allow_replace: bool = False,
+                 allowed_extensions: Optional[Iterable[str]] = None) -> List[str]:
     """Validate and store ``files`` under ``destination``.
 
     ``allow_replace`` is used when adding files to an existing job: re-uploading
@@ -144,7 +147,10 @@ def save_uploads(files: Sequence, destination: Path,
         total = 0
 
         for upload in files:
-            name = _safe_name(getattr(upload, "filename", None))
+            name = _safe_name(
+                getattr(upload, "filename", None),
+                allowed_extensions=allowed_extensions or ALLOWED_EXTENSIONS,
+            )
             key = name.casefold()
             if key in seen:
                 raise UploadValidationError(f"Duplicate upload filename: '{name}'.")

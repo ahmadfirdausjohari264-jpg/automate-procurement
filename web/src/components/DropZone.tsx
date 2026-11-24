@@ -99,7 +99,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
       className={[
         "relative rounded-2xl border border-dashed p-10 text-center transition-all duration-200",
         dragging
-          ? "border-amber bg-amber/5"
+          ? "border-rose bg-maroon-800/40"
           : "border-ink-600 bg-ink-900/60 hover:border-ink-600/80",
         disabled ? "pointer-events-none opacity-50" : "cursor-pointer",
       ].join(" ")}
@@ -130,7 +130,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
           height="26"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="var(--color-amber)"
+          stroke="var(--color-rose)"
           strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -142,16 +142,16 @@ export default function DropZone({ onFiles, disabled }: Props) {
       </div>
 
       <p className="font-mono text-sm text-paper-50">
-        Drop your <span className="text-amber">ITB folder</span> here
+        Drop your <span className="text-rose">ITB folder</span> here
       </p>
-      <p className="mt-1 font-mono text-xs text-ink-600 text-paper-200/50">
+      <p className="mt-1 font-mono text-xs text-paper-200/90">
         or click to browse &middot; PDFs and screenshots are read automatically
       </p>
 
       <div className="mt-5 flex items-center justify-center gap-3">
         <button
           type="button"
-          className="rounded-lg bg-amber px-4 py-1.5 font-mono text-xs font-semibold text-space-950 transition hover:bg-amber-light"
+          className="rounded-lg bg-maroon px-4 py-1.5 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light"
           onClick={(e) => {
             e.stopPropagation();
             dirInput.current?.click();
@@ -161,7 +161,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
         </button>
         <button
           type="button"
-          className="rounded-lg border border-ink-600 px-4 py-1.5 font-mono text-xs text-paper-200 transition hover:border-amber hover:text-amber"
+          className="rounded-lg border border-ink-600 px-4 py-1.5 font-mono text-xs text-paper-50 transition hover:border-rose hover:text-rose"
           onClick={(e) => {
             e.stopPropagation();
             fileInput.current?.click();

@@ -33,6 +33,7 @@ from .auth import (
 )
 from .jobs import JobEditError, job_manager
 from .supplier_store import supplier_store
+from .supplier_parser import parse_supplier_files
 from .suppliers import SupplierFinder, quota_status, supplier_finder
 from .upload_guard import MAX_REQUEST_BYTES, UploadValidationError
 
@@ -90,6 +91,7 @@ class AiSettingsRequest(BaseModel):
 class SupplierPayload(BaseModel):
     """User-editable fields of a curated supplier directory entry."""
     company_name: Optional[str] = ""
+    business_scope: Optional[str] = ""
     website: Optional[str] = ""
     email: Optional[str] = ""
     contact: Optional[str] = ""
@@ -756,6 +758,34 @@ def create_supplier(body: SupplierPayload, user: dict = Depends(current_user)):
 def import_suppliers(body: SupplierImportRequest, user: dict = Depends(current_user)):
     """Bulk-add suppliers (skips duplicates) and report the counts."""
     return supplier_store.add_many([s.model_dump() for s in body.suppliers], owner=user.get("id"))
+
+
+@app.post("/api/suppliers/parse")
+def parse_supplier_uploads(
+    files: List[UploadFile] = File(...),
+    user: dict = Depends(current_user),
+):
+    """Extract supplier rows from uploaded documents for user review."""
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded.")
+    entry = _user_settings(user)
+    provider = get_spec(entry.get("ai_provider")).id
+    _require_personal_key(user, provider)
+    try:
+        return {
+            "suppliers": parse_supplier_files(
+                files,
+                provider=provider,
+                api_key=_user_api_key(user, provider),
+                model=entry.get(f"{provider}_model"),
+            )
+        }
+    except UploadValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not parse supplier files: {str(e)[:300]}")
 
 
 @app.patch("/api/suppliers/{supplier_id}")

@@ -2,8 +2,8 @@ import type { Job } from "../types";
 
 // Badge colours for each job status.
 const STATUS_STYLES: Record<string, string> = {
-  queued: "text-paper-200/70 border-ink-600",
-  running: "text-amber border-amber/50",
+  queued: "text-paper-200/90 border-ink-600",
+  running: "text-rose border-rose/50",
   done: "text-teal border-teal/50",
   error: "text-danger border-danger/50",
 };
@@ -25,9 +25,9 @@ export default function JobPanel({ job }: { job: Job }) {
           >
             {job.status}
           </span>
-          <span className="font-mono text-xs text-paper-200/60">job {job.id}</span>
+          <span className="font-mono text-xs text-paper-200/90">job {job.id}</span>
         </div>
-        <span className="font-mono text-xs text-paper-200/50">
+        <span className="font-mono text-xs text-paper-200/85">
           {job.files.length} file{job.files.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -38,7 +38,7 @@ export default function JobPanel({ job }: { job: Job }) {
         <div
           className={[
             "h-full rounded-full transition-all duration-500",
-            job.status === "error" ? "bg-danger" : job.status === "done" ? "bg-teal" : "bg-amber",
+            job.status === "error" ? "bg-danger" : job.status === "done" ? "bg-teal" : "bg-red",
           ].join(" ")}
           style={{ width: `${pct}%` }}
         />
@@ -52,12 +52,12 @@ export default function JobPanel({ job }: { job: Job }) {
 
       <div className="mt-4 max-h-56 overflow-y-auto rounded-lg border border-ink-800 bg-space-950 p-3 scrollbar-thin">
         {job.logs.length === 0 ? (
-          <p className="font-mono text-xs text-paper-200/40">waiting for output…</p>
+          <p className="font-mono text-xs text-paper-200/80">waiting for output…</p>
         ) : (
           job.logs.map((log, i) => (
             <div key={i} className="flex gap-3 font-mono text-xs leading-relaxed">
-              <span className="text-ink-600">{log.ts}</span>
-              <span className="text-paper-200/80">{log.message}</span>
+              <span className="text-paper-200/90">{log.ts}</span>
+              <span className="text-paper-200/95">{log.message}</span>
             </div>
           ))
         )}
