@@ -85,12 +85,14 @@ class HistoryStore:
             "output_path": job.output_path,
             "config": job.config,
             "data": job.data,
+            "email_draft": getattr(job, "email_draft", None),
             "versions": job.versions,
             "audit": job.audit[-100:],
         }
         entry = record.copy()
         entry.pop("logs", None)
         entry.pop("data", None)
+        entry.pop("email_draft", None)
 
         title, subtitle = _title_and_subtitle(job)
         data = job.data or {}

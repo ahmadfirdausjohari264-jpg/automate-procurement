@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listSuppliers } from "../api";
+import { isSupportedItbFile, ITB_FILE_ACCEPT } from "../itbFiles";
 import type { HistoryItem, Job, SavedSupplier } from "../types";
-
-const PIPELINE_FILE_TYPES = ".pdf,.docx,.xlsx,.xlsm,.png,.jpg,.jpeg,.webp,.bmp";
 
 function relativeTime(iso: string): string {
   const date = new Date(iso);
@@ -35,7 +34,7 @@ function ActivityChart({ history }: { history: HistoryItem[] }) {
   const area = hasActivity ? `${line} L 292,58 L 8,58 Z` : "";
 
   return (
-    <svg viewBox="0 0 300 76" className="h-[72px] w-full" role="img" aria-label="Pipeline runs per day over the last seven days">
+    <svg viewBox="0 0 300 76" className="h-[72px] w-full" role="img" aria-label="JobList runs per day over the last seven days">
       <defs>
         <linearGradient id="activity-fill" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="#E63946" stopOpacity=".24" />
@@ -57,10 +56,162 @@ function ActivityChart({ history }: { history: HistoryItem[] }) {
         );
       }) : (
         <text x="150" y="34" textAnchor="middle" fill="#AAB0BF" fontSize="8" fontFamily="monospace">
-          No recent pipeline activity
+          No recent JobList activity
         </text>
       )}
     </svg>
+  );
+}
+
+function formatDuration(milliseconds: number): string {
+  const minutes = Math.floor(milliseconds / 60_000);
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
+interface AttendanceState {
+  date: string;
+  clockInAt: number | null;
+  elapsedMs: number;
+}
+
+function localDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatClockTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
+function readAttendance(storageKey: string): AttendanceState {
+  const today = localDateKey(new Date());
+  try {
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      const state = JSON.parse(stored) as AttendanceState;
+      if (
+        state.date === today &&
+        (state.clockInAt === null || Number.isFinite(state.clockInAt)) &&
+        Number.isFinite(state.elapsedMs) &&
+        state.elapsedMs >= 0
+      ) {
+        return state;
+      }
+    }
+  } catch {
+    // Ignore stale or malformed local attendance state and start a fresh day.
+  }
+  return { date: today, clockInAt: null, elapsedMs: 0 };
+}
+
+function AttendanceBanner({ storageKey }: { storageKey: string }) {
+  const [attendance, setAttendance] = useState(() => readAttendance(storageKey));
+  const [now, setNow] = useState(() => Date.now());
+  const clockInAt = attendance.clockInAt;
+  const active = clockInAt !== null;
+  const totalMs = attendance.elapsedMs + (active ? Math.max(0, now - clockInAt) : 0);
+  const time = new Date(now).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(attendance));
+  }, [attendance, storageKey]);
+
+  const clockIn = () => {
+    const startedAt = Date.now();
+    setNow(startedAt);
+    setAttendance((current) => ({
+      date: localDateKey(new Date(startedAt)),
+      clockInAt: startedAt,
+      elapsedMs: current.date === localDateKey(new Date(startedAt)) ? current.elapsedMs : 0,
+    }));
+  };
+  const clockOut = () => {
+    if (clockInAt === null) return;
+    const endedAt = Date.now();
+    setNow(endedAt);
+    setAttendance((current) => ({
+      ...current,
+      clockInAt: null,
+      elapsedMs: current.elapsedMs + Math.max(0, endedAt - clockInAt),
+    }));
+  };
+
+  return (
+    <section
+      aria-label="Time tracking and attendance"
+      className="relative mb-5 overflow-hidden rounded-2xl border border-ink-700 bg-[#16181E]/90 p-4 shadow-2xl shadow-black/20 backdrop-blur-xl sm:p-5"
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-red/70 to-transparent" />
+      <div className="grid gap-5 lg:grid-cols-[minmax(230px,1fr)_minmax(0,1.4fr)_auto] lg:items-center">
+        <div className="border-b border-ink-700 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
+          <p className="mb-2 inline-flex rounded-md border border-red/30 bg-red/10 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-red">
+            Time Tracking &amp; Attendance
+          </p>
+          <p className="font-mono text-3xl tracking-[0.08em] text-paper-50 sm:text-[2rem]" aria-label={`Current time ${time}`}>
+            {time}
+          </p>
+          <p className={`mt-1 font-mono text-[10px] tracking-wide ${active ? "text-teal" : "text-paper-200/50"}`}>
+            {active ? `CLOCKED IN AT: ${formatClockTime(clockInAt)}` : "NOT CLOCKED IN"}
+          </p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="border-b border-ink-700 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-paper-200/60">Total Hours Today</p>
+            <p className="mt-2 font-mono text-xl text-paper-50">{formatDuration(totalMs)}</p>
+          </div>
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-paper-200/60">Shift Status</p>
+            <p className={`mt-2 inline-flex items-center gap-2 font-mono text-sm ${active ? "text-teal" : "text-paper-200/60"}`}>
+              <span className={`h-2 w-2 rounded-full ${active ? "animate-pulse-dot bg-teal shadow-[0_0_10px_rgba(16,185,129,0.65)]" : "bg-paper-200/35"}`} />
+              {active ? "ACTIVE (In Progress)" : "NOT CLOCKED IN"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          <button
+            onClick={clockIn}
+            disabled={active}
+            className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2.5 font-sans text-sm font-semibold text-space-950 shadow-lg shadow-teal/20 transition hover:bg-teal/90 disabled:cursor-not-allowed"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="m8 12 2.5 2.5L16 9" />
+            </svg>
+            Clock In
+          </button>
+          <button
+            onClick={clockOut}
+            disabled={!active}
+            className="inline-flex items-center gap-2 rounded-lg border border-red/40 bg-red/5 px-4 py-2.5 font-sans text-sm font-medium text-red/75 transition hover:bg-red/10 disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M8 12h8" />
+            </svg>
+            Clock Out
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -68,32 +219,40 @@ export default function Dashboard({
   history,
   job,
   running,
+  attendanceKey,
   onFiles,
   onNewRun,
   onOpenDirectory,
-  onOpenPipeline,
   onError,
 }: {
   history: HistoryItem[];
   job: Job | null;
   running: boolean;
+  attendanceKey: string;
   onFiles: (files: File[]) => void;
   onNewRun: () => void;
   onOpenDirectory: (query?: string) => void;
-  onOpenPipeline: () => void;
   onError: (message: string) => void;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const directorySearchRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [contractors, setContractors] = useState<SavedSupplier[]>([]);
   const [directoryQuery, setDirectoryQuery] = useState("");
 
   useEffect(() => {
+    setDirectoryQuery("");
+    if (directorySearchRef.current) directorySearchRef.current.value = "";
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     listSuppliers()
       .then((rows) => {
-        if (!cancelled) setContractors(rows);
+        if (!cancelled) {
+          setContractors(rows);
+        }
       })
       .catch((error) => {
         if (!cancelled) onError(error instanceof Error ? error.message : String(error));
@@ -118,6 +277,8 @@ export default function Dashboard({
       )
       .slice(0, 3);
   }, [contractors, directoryQuery]);
+  const previewRows: Array<Pick<SavedSupplier, "id" | "company_name" | "email" | "business_scope" | "contact">> = matches;
+  const displayedRecordCount = contractors.length;
 
   const activeRuns = history.filter((item) => item.status === "running" || item.status === "queued").length;
   const completedRuns = history.filter((item) => item.status === "done").length;
@@ -130,38 +291,37 @@ export default function Dashboard({
       : 0;
 
   const acceptFiles = (files: File[]) => {
-    const accepted = files.filter((file) =>
-      PIPELINE_FILE_TYPES.split(",").some((extension) => file.name.toLowerCase().endsWith(extension)),
-    );
-    if (accepted.length !== files.length) onError("Some selected files are not supported by the ITB pipeline.");
+    const accepted = files.filter((file) => isSupportedItbFile(file.name));
+    if (accepted.length !== files.length) onError("Some selected files are not supported by JobList.");
     if (accepted.length) onFiles(accepted);
   };
 
   return (
     <>
       <section className="mx-auto w-full max-w-[1680px] py-7 sm:py-9">
-        <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose">Workspace / Overview</p>
-            <h1 className="mt-2 font-sans text-3xl font-semibold tracking-tight text-paper-50 sm:text-4xl">Dashboard</h1>
-            <p className="mt-2 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/85">
-              Start an ITB pipeline, review saved runs, or manage your client and contractor directory.
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
+        <div className="mb-5">
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose">Workspace / Overview</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <h1 className="font-sans text-3xl font-semibold tracking-tight text-paper-50 sm:text-4xl">Dashboard</h1>
             <button
-              onClick={onOpenPipeline}
-              className="font-sans text-sm text-paper-200/80 transition hover:text-paper-50"
+              onClick={onNewRun}
+              disabled={running}
+              className="rounded-md bg-white px-3 py-1.5 font-sans text-xs font-bold text-red shadow-sm transition hover:bg-paper-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Quick Start
+              + New Project
             </button>
           </div>
+          <p className="mt-2 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/85">
+            Start a new ITB job, review saved runs, or manage your client and contractor directory.
+          </p>
         </div>
+
+        <AttendanceBanner storageKey={`dynaconsurv-attendance-${attendanceKey}`} />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-3">
           <article className="flex min-h-[310px] flex-col rounded-2xl border border-ink-700 bg-[#16181E]/90 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
             <div className="mb-4 flex items-center justify-between">
-              <span className="rounded-md border border-red/30 bg-red/10 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.16em] text-red">PIPELINE</span>
+              <span className="rounded-md border border-red/30 bg-red/10 px-2 py-1 font-mono text-[10px] font-semibold tracking-[0.16em] text-red">JOBLIST</span>
               <span className="font-mono text-[10px] text-paper-200/55">01 / ITB PROCESSING</span>
             </div>
             <h2 className="font-sans text-lg font-semibold text-paper-50">Start a new ITB run</h2>
@@ -198,7 +358,7 @@ export default function Dashboard({
                   ref={fileInput}
                   type="file"
                   multiple
-                  accept={PIPELINE_FILE_TYPES}
+                  accept={ITB_FILE_ACCEPT}
                   className="hidden"
                   onChange={(event) => {
                     acceptFiles(Array.from(event.target.files ?? []));
@@ -209,12 +369,12 @@ export default function Dashboard({
                   <path d="M12 16V4m0 0L8 8m4-4 4 4M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
                 </svg>
                 <span className="font-mono text-[11px] text-paper-50">Drop files or click to upload</span>
-                <span className="mt-1 font-mono text-[9px] text-paper-200/55">PDF · DOCX · XLSX · IMAGES</span>
+                <span className="mt-1 font-mono text-[9px] text-paper-200/55">DOCS · SHEETS · SLIDES · MEDIA</span>
               </div>
 
               <div className="flex flex-col items-center gap-3">
-                <svg viewBox="0 0 128 44" className="h-10 w-28" role="img" aria-label="Read, classify, and generate pipeline">
-                  <path d="M27 22h20m28 0h20" stroke="#353944" strokeWidth="1.5" />
+                <svg viewBox="0 0 128 44" className="h-10 w-28" role="img" aria-label="Read, classify, and generate with JobList">
+                  <path d="M27 22h20m28 0h20" stroke="#262933" strokeWidth="1.5" />
                   <path d="m43 18 5 4-5 4m44-8 5 4-5 4" stroke="#E63946" strokeWidth="1.5" fill="none" />
                   {["READ", "AI", "SPEC"].map((label, index) => (
                     <g key={label} transform={`translate(${index * 48},0)`}>
@@ -236,9 +396,17 @@ export default function Dashboard({
           </article>
 
           <article className="flex min-h-[310px] flex-col rounded-2xl border border-ink-700 bg-[#16181E]/90 p-5 shadow-2xl shadow-black/20 backdrop-blur-xl">
+            <input
+              type="text"
+              name="dashboard_autofill_trap"
+              autoComplete="username"
+              aria-hidden="true"
+              tabIndex={-1}
+              style={{ display: "none" }}
+            />
             <div className="mb-4 flex items-center justify-between gap-2">
               <span className="font-mono text-[10px] font-semibold tracking-[0.16em] text-red">CLIENT / CONTRACTOR LIST</span>
-              <span className="font-mono text-[10px] text-paper-200/55">{contractors.length} RECORDS</span>
+              <span className="font-mono text-[10px] text-paper-200/55">{directoryLoading ? "…" : displayedRecordCount} RECORDS</span>
             </div>
             <h2 className="font-sans text-lg font-semibold text-paper-50">Manage your directory</h2>
             <p className="mt-1 font-sans text-xs text-paper-200/70">Search, import and maintain reusable supplier records.</p>
@@ -248,6 +416,10 @@ export default function Dashboard({
                 <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
               </svg>
               <input
+                ref={directorySearchRef}
+                id="directory_search_input"
+                name="directory_search_no_autofill"
+                autoComplete="new-password"
                 value={directoryQuery}
                 onChange={(event) => setDirectoryQuery(event.target.value)}
                 aria-label="Search contractors in directory preview"
@@ -272,8 +444,8 @@ export default function Dashboard({
                     <span className="text-paper-200/50">···</span>
                   </div>
                 ))
-              ) : matches.length ? (
-                matches.map((supplier) => (
+              ) : previewRows.length ? (
+                previewRows.map((supplier) => (
                   <button
                     key={supplier.id}
                     onClick={() => onOpenDirectory(directoryQuery)}
@@ -334,7 +506,7 @@ export default function Dashboard({
               </div>
 
               <div className="min-w-0">
-                <p className="mb-1 font-mono text-[10px] text-paper-200/60">Pipeline activity</p>
+                <p className="mb-1 font-mono text-[10px] text-paper-200/60">JobList activity</p>
                 <ActivityChart history={history} />
                 <p className="mt-2 font-sans text-xs font-medium text-paper-50">Recent Activity</p>
                 <ul className="mt-2 space-y-2">
@@ -346,7 +518,7 @@ export default function Dashboard({
                     </li>
                   ))}
                   {history.length === 0 && (
-                    <li className="font-mono text-[10px] text-paper-200/55">Pipeline actions will appear here.</li>
+                    <li className="font-mono text-[10px] text-paper-200/55">JobList activity will appear here.</li>
                   )}
                 </ul>
               </div>
@@ -355,7 +527,7 @@ export default function Dashboard({
         </div>
 
         <footer className="mt-7 border-t border-ink-700/70 pt-4 font-mono text-[10px] text-paper-200/50">
-          DYNACONSURV · local pipeline · powered by Gemini, OpenAI &amp; Anthropic
+          DYNA CONSURV · local pipeline · powered by Gemini, OpenAI &amp; Anthropic
         </footer>
       </section>
     </>

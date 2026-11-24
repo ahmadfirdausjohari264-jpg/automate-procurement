@@ -21,7 +21,7 @@ export function parseSkipList(value: string): string[] {
 }
 
 /** Matches filenames the backend reads as documents (PDF / Word / Excel). */
-const DOC_EXT = /\.(pdf|docx|xlsx|xlsm)$/i;
+const DOC_EXT = /\.(doc|docx|pdf|txt|rtf|odt|pages|xls|xlsx|xlsm|csv|ods|ppt|pptx|key|svg|psd|ai|mp3|wav|m4a|flac|ogg|opus|aac|aiff|aif|wma|png|jpe?g|webp|bmp|gif|tif|tiff)$/i;
 
 /**
  * Settings section where the user lists exact filenames to skip.
@@ -61,7 +61,7 @@ export default function SettingsPanel({ names, value, onChange, disabled }: Prop
       </div>
 
       <p className="mt-2 font-sans text-xs leading-relaxed text-paper-200/85">
-        Every document (PDF, Word, Excel) is read by default. Click a document below or type its{" "}
+        Every supported file is read by default. Click a file below or type its{" "}
         <span className="text-paper-200/95">exact filename</span> (one per line) to exclude it
         from item extraction. Matching is case-insensitive.
       </p>
@@ -91,11 +91,14 @@ export default function SettingsPanel({ names, value, onChange, disabled }: Prop
       )}
 
       <textarea
+        id="skip_files_input"
+        name="skip_files_no_autofill"
+        autoComplete="new-password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         rows={3}
-        placeholder={"e.g. GENERAL TERMS AND CONDITIONS (GTC).pdf"}
+        placeholder={"e.g. GENERAL TERMS AND CONDITIONS (GTC).docx"}
         className="mt-3 w-full resize-y rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 font-mono text-xs text-paper-50 placeholder:text-paper-200/70 focus:border-rose focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>

@@ -13,10 +13,17 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
 ALLOWED_EXTENSIONS = frozenset({
-    ".pdf", ".docx", ".xlsx", ".xlsm",
+    ".doc", ".docx", ".pdf", ".txt", ".rtf", ".odt", ".pages",
+    ".xls", ".xlsx", ".xlsm", ".csv", ".ods",
+    ".ppt", ".pptx", ".key",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff",
+    ".svg", ".psd", ".ai",
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".aiff", ".aif", ".wma",
 })
-_ZIP_EXTENSIONS = frozenset({".docx", ".xlsx", ".xlsm", ".pptx"})
+_ZIP_EXTENSIONS = frozenset({
+    ".docx", ".xlsx", ".xlsm", ".pptx", ".odt", ".ods", ".pages", ".key",
+})
+_OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 _RESERVED_NAMES = frozenset(
     {"CON", "PRN", "AUX", "NUL"}
@@ -91,10 +98,41 @@ def _signature_ok(path: Path, ext: str) -> bool:
         return head.startswith(b"RIFF") and head[8:12] == b"WEBP"
     if ext in (".tif", ".tiff"):
         return head.startswith((b"II*\x00", b"MM\x00*"))
+    if ext in {".doc", ".xls", ".ppt"}:
+        return head.startswith(_OLE_SIGNATURE)
+    if ext == ".ai":
+        return b"%PDF-" in head or b"%!PS-Adobe" in head
+    if ext == ".psd":
+        return head.startswith(b"8BPS")
+    if ext == ".svg":
+        lowered = head.lower()
+        return b"<svg" in lowered or (b"<?xml" in lowered and b"<svg" in lowered)
+    if ext == ".rtf":
+        return head.lstrip(b"\xef\xbb\xbf \t\r\n").startswith(b"{\\rtf")
+    if ext == ".txt":
+        return b"\x00" not in head or head.startswith((b"\xff\xfe", b"\xfe\xff"))
+    if ext in {".mp3"}:
+        return head.startswith(b"ID3") or (
+            len(head) > 1 and head[0] == 0xFF and (head[1] & 0xE0) == 0xE0
+        )
+    if ext == ".wav":
+        return head.startswith(b"RIFF") and head[8:12] == b"WAVE"
+    if ext in {".m4a"}:
+        return len(head) >= 12 and head[4:8] == b"ftyp"
+    if ext == ".flac":
+        return head.startswith(b"fLaC")
+    if ext in {".ogg", ".opus"}:
+        return head.startswith(b"OggS")
+    if ext == ".aac":
+        return len(head) > 1 and head[0] == 0xFF and (head[1] & 0xF6) == 0xF0
+    if ext in {".aiff", ".aif"}:
+        return head.startswith(b"FORM") and head[8:12] in {b"AIFF", b"AIFC"}
+    if ext == ".wma":
+        return head.startswith(b"\x30\x26\xb2\x75\x8e\x66\xcf\x11\xa6\xd9\x00\xaa\x00\x62\xce\x6c")
     if ext in _ZIP_EXTENSIONS:
         return head.startswith((b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"))
     if ext == ".csv":
-        return b"\x00" not in head
+        return b"\x00" not in head or head.startswith((b"\xff\xfe", b"\xfe\xff"))
     return False
 
 
@@ -117,9 +155,22 @@ def _check_zip(path: Path, name: str) -> None:
 def _validate_content(path: Path, name: str) -> None:
     ext = Path(name).suffix.lower()
     if not _signature_ok(path, ext):
+        if ext in {".doc", ".docx"}:
+            raise UploadValidationError(
+                f"Failed to read Word document {name}. Ensure file is not password protected. "
+                "The uploaded file does not match its Word file extension."
+            )
         raise UploadValidationError(f"'{name}' does not match its file type.")
     if ext in _ZIP_EXTENSIONS:
-        _check_zip(path, name)
+        try:
+            _check_zip(path, name)
+        except UploadValidationError as exc:
+            if ext == ".docx":
+                raise UploadValidationError(
+                    f"Failed to read Word document {name}. Ensure file is not password protected. "
+                    f"Parser details: {exc}"
+                ) from exc
+            raise
 
 
 def save_uploads(files: Sequence, destination: Path,

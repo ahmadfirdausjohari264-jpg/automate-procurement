@@ -31,6 +31,50 @@ export interface RfqEmail {
   body: string;
 }
 
+export interface EmailAttachmentOption {
+  id: string;
+  name: string;
+  kind: "specification" | "source" | "uploaded";
+}
+
+export interface EmailDraftSummary {
+  reference?: string;
+  client?: string;
+  title?: string;
+  item_count?: number;
+  specification_status?: string;
+  supplier?: string;
+  supplier_email?: string;
+  specification_version?: string;
+  submission_deadline?: string;
+  tender_dates?: string[];
+  notes?: string[];
+  generated_at?: string;
+}
+
+export interface EmailDraft {
+  id: string;
+  source_version_id: number | null;
+  source_version_tag: string | null;
+  created_at: string;
+  updated_at: string;
+  mode: "scratch" | "pipeline";
+  to: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  body: string;
+  available_attachments: EmailAttachmentOption[];
+  selected_attachments: string[];
+  summary: EmailDraftSummary;
+  edited: boolean;
+}
+
+export type EmailDraftUpdate = Pick<
+  EmailDraft,
+  "mode" | "to" | "cc" | "bcc" | "subject" | "body" | "selected_attachments"
+>;
+
 /** One shortlisted supplier found via a live, grounded web search. */
 export interface Supplier {
   company_name: string;
@@ -155,9 +199,11 @@ export interface Job {
   error?: string | null;
   files: string[];
   result: JobResult | null;
+  email_draft?: EmailDraft | null;
   versions: VersionInfo[];
   audit: AuditEvent[];
   created_at: string;
+  object_id?: string | null;
 }
 
 /** One saved ITB run shown in the history sidebar. */

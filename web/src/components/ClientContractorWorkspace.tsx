@@ -20,6 +20,7 @@ export default function ClientContractorWorkspace({
   initialQuery,
   onError,
   onUpdated,
+  onGenerateEmail,
 }: {
   active: boolean;
   job: Job | null;
@@ -27,6 +28,7 @@ export default function ClientContractorWorkspace({
   initialQuery?: string;
   onError: (message: string) => void;
   onUpdated: (job: Job) => void;
+  onGenerateEmail: () => void;
 }) {
   const [tab, setTab] = useState<DirectoryTab>("master");
   const [query, setQuery] = useState(initialQuery ?? "");
@@ -38,7 +40,13 @@ export default function ClientContractorWorkspace({
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const directorySearchRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
+
+  useEffect(() => {
+    setQuery("");
+    if (directorySearchRef.current) directorySearchRef.current.value = "";
+  }, []);
 
   useEffect(() => {
     if (initialQuery !== undefined) setQuery(initialQuery);
@@ -141,6 +149,10 @@ export default function ClientContractorWorkspace({
           <label className="min-w-[220px] flex-1 sm:w-64 sm:flex-none">
             <span className="sr-only">Search contractors</span>
             <input
+              ref={directorySearchRef}
+              id="contractor_directory_search_no_autofill"
+              name="contractor_directory_search_no_autofill"
+              autoComplete="new-password"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search contractors..."
@@ -350,13 +362,23 @@ export default function ClientContractorWorkspace({
           <SupplierPanel job={job} onError={onError} onUpdated={onUpdated} />
         ) : (
           <div className="rounded-xl border border-dashed border-ink-700 bg-[#16181E] p-8 text-center">
-            <p className="font-mono text-xs text-paper-200/80">Open a completed pipeline run to review its project shortlist.</p>
+            <p className="font-mono text-xs text-paper-200/80">Open a completed JobList run to review its project shortlist.</p>
           </div>
         )}
       </div>
 
+      <div className="mt-10 flex justify-end border-t border-ink-800 pt-5">
+        <button
+          type="button"
+          onClick={onGenerateEmail}
+          className="rounded-lg bg-maroon px-5 py-3 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light focus:outline-none focus:ring-2 focus:ring-rose/60"
+        >
+          Generate Email <span aria-hidden="true">→</span>
+        </button>
+      </div>
+
       {dragging && active && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#12141A]/90 p-8 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0D0E12]/90 p-8 backdrop-blur-sm">
           <div className="w-full max-w-xl rounded-2xl border-2 border-dashed border-rose bg-[#16181E] p-12 text-center">
             <p className="font-mono text-lg font-semibold text-paper-50">Drop files to extract contractor records</p>
             <p className="mt-3 font-mono text-xs text-paper-200/70">

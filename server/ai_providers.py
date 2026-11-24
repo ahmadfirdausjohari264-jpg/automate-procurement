@@ -55,6 +55,7 @@ _MIME_BY_EXT = {
     ".tiff": "image/tiff",
     ".bmp": "image/bmp",
     ".gif": "image/gif",
+    ".gif": "image/gif",
 }
 
 

@@ -53,6 +53,23 @@ class LineItemUpdate(BaseModel):
     uom: Optional[str] = Field(None, max_length=100)
 
 
+class EmailDraftGenerateRequest(BaseModel):
+    """Whether to replace an existing editable draft with a fresh one."""
+    regenerate: bool = False
+    mode: str = "scratch"
+
+
+class EmailDraftUpdateRequest(BaseModel):
+    """Editable fields saved for a supplier email draft."""
+    to: str = Field("", max_length=1000)
+    cc: str = Field("", max_length=1000)
+    bcc: str = Field("", max_length=1000)
+    mode: str = "scratch"
+    subject: str = Field("", max_length=1000)
+    body: str = Field("", max_length=50000)
+    selected_attachments: List[str] = Field(default_factory=list, max_length=100)
+
+
 class LoginRequest(BaseModel):
     """Credentials submitted from the login screen."""
     username: str
@@ -566,6 +583,62 @@ async def create_job(
 def get_job(job_id: str, user: dict = Depends(current_user)):
     """Return the current status, logs and results of a job you own."""
     return _owned_job(job_id, user).to_dict()
+
+
+@app.post("/api/jobs/{job_id}/email-draft/generate")
+def generate_email_draft(
+    job_id: str,
+    body: EmailDraftGenerateRequest,
+    user: dict = Depends(current_user),
+):
+    """Create or explicitly regenerate a draft linked to the current specification."""
+    _owned_job(job_id, user)
+    try:
+        job = job_manager.generate_email_draft(
+            job_id,
+            regenerate=body.regenerate,
+            mode=body.mode,
+            actor=user.get("username"),
+        )
+    except JobEditError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    return job.to_dict()
+
+
+@app.post("/api/jobs/{job_id}/email-draft/attachments")
+async def add_email_draft_attachments(
+    job_id: str,
+    files: List[UploadFile] = File(...),
+    user: dict = Depends(current_user),
+):
+    """Add validated, optional files to an existing email draft."""
+    _owned_job(job_id, user)
+    if not files:
+        raise HTTPException(status_code=400, detail="No attachments uploaded.")
+    try:
+        job = job_manager.add_email_attachments(
+            job_id, files, actor=user.get("username")
+        )
+    except JobEditError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    return job.to_dict()
+
+
+@app.put("/api/jobs/{job_id}/email-draft")
+def save_email_draft(
+    job_id: str,
+    body: EmailDraftUpdateRequest,
+    user: dict = Depends(current_user),
+):
+    """Save an editable draft and append its changes to the audit trail."""
+    _owned_job(job_id, user)
+    try:
+        job = job_manager.save_email_draft(
+            job_id, body.model_dump(), actor=user.get("username")
+        )
+    except JobEditError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    return job.to_dict()
 
 
 @app.patch("/api/jobs/{job_id}/items/{index}")

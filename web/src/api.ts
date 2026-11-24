@@ -2,6 +2,7 @@ import type {
   AdminHistoryOwner,
   AiSettings,
   AuthUser,
+  EmailDraftUpdate,
   HistoryItem,
   Job,
   LineItemEdit,
@@ -64,6 +65,71 @@ export async function getJob(id: string): Promise<Job> {
   const res = await request(`${BASE}/jobs/${id}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch job (${res.status})`);
+  }
+  return (await res.json()) as Job;
+}
+
+/** Create a blank draft or generate a suggestion from the current JobList run. */
+export async function generateEmailDraft(
+  id: string,
+  regenerate = false,
+  mode: "scratch" | "pipeline" = "scratch",
+): Promise<Job> {
+  const res = await request(`${BASE}/jobs/${id}/email-draft/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ regenerate, mode }),
+  });
+  if (!res.ok) {
+    const raw = await res.text();
+    let detail = raw;
+    try {
+      detail = JSON.parse(raw).detail || raw;
+    } catch {
+      // Plain-text error body.
+    }
+    throw new Error(detail || `Failed to generate email draft (${res.status})`);
+  }
+  return (await res.json()) as Job;
+}
+
+/** Upload optional attachments to an email draft without sending them. */
+export async function uploadEmailAttachments(id: string, files: File[]): Promise<Job> {
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file));
+  const res = await request(`${BASE}/jobs/${id}/email-draft/attachments`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const raw = await res.text();
+    let detail = raw;
+    try {
+      detail = JSON.parse(raw).detail || raw;
+    } catch {
+      // Plain-text error body.
+    }
+    throw new Error(detail || `Failed to upload email attachments (${res.status})`);
+  }
+  return (await res.json()) as Job;
+}
+
+/** Save user-edited email draft fields and attachment selections. */
+export async function saveEmailDraft(id: string, draft: EmailDraftUpdate): Promise<Job> {
+  const res = await request(`${BASE}/jobs/${id}/email-draft`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+  if (!res.ok) {
+    const raw = await res.text();
+    let detail = raw;
+    try {
+      detail = JSON.parse(raw).detail || raw;
+    } catch {
+      // Plain-text error body.
+    }
+    throw new Error(detail || `Failed to save email draft (${res.status})`);
   }
   return (await res.json()) as Job;
 }

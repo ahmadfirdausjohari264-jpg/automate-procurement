@@ -146,7 +146,7 @@ class AIProcessor:
     MAX_CHARS_PER_CHUNK = 160000
     MAX_IMAGES = 12
     # Concurrent classification calls per run (raise only if your quota allows).
-    MAX_WORKERS = max(1, int(os.environ.get("AI_CLASSIFY_WORKERS", "4")))
+    MAX_WORKERS = max(1, int(os.environ.get("AI_CLASSIFY_WORKERS", "2")))
     CACHE_VERSION = "v7"
     CACHE_DIR = Path("./data/.ai_cache")
 
@@ -193,7 +193,7 @@ class AIProcessor:
         ).hexdigest()
         return self.CACHE_DIR / f"{key}.json"
 
-    def _generate(self, contents, cache_seed: str, retries: int = 2) -> Classification:
+    def _generate(self, contents, cache_seed: str, retries: int = 3) -> Classification:
         """Call the provider, trying each fallback model, retrying transient errors.
 
         Daily-quota and timeout errors skip straight to the next model instead
@@ -239,7 +239,7 @@ class AIProcessor:
                     if not is_transient_error(msg) or attempt == retries - 1:
                         self._note_failure(model)
                         break
-                    delay = min(8, 2 ** attempt) + random.uniform(0, 1)
+                    delay = min(8, 2 ** (attempt + 1)) + random.uniform(0, 1)
                     time.sleep(delay)
         raise RuntimeError(
             f"{self.provider} classification failed on all models: {last_err}"
@@ -263,8 +263,7 @@ class AIProcessor:
         return ImagePart(path)
 
     def _classify_images(self, image_paths: List[str], progress=None) -> Classification:
-        """Classify up to MAX_IMAGES screenshots/pages as a single request."""
-        image_paths = image_paths[: self.MAX_IMAGES]
+        """Classify one batch of screenshots/pages as a single request."""
         if not image_paths:
             return Classification()
         contents = [IMAGE_INSTRUCTION]
@@ -321,20 +320,25 @@ class AIProcessor:
     def classify(self, text: str, image_paths: List[str] = None, progress=None) -> Dict:
         """Classify all text chunks and images, then return cleaned results.
 
-        Chunks and the image batch are independent requests, so they run
-        concurrently (up to ``MAX_WORKERS`` at a time); merging happens
-        single-threaded afterwards in the original deterministic order.
+        Text chunks and image batches are independent requests, so they run
+        concurrently (up to ``MAX_WORKERS`` at a time). Successful task results
+        are retained if another task fails; partial results include warnings.
+        Merging happens single-threaded afterwards in deterministic order.
 
         Returns a dict with ``line_items``, the requirement categories and the
         merged document ``meta`` fields.
         """
         cleaned_text = _clean_input_text(text)
         chunks = self._chunk(cleaned_text) if cleaned_text else []
+        image_paths = image_paths or []
         merged = Classification()
         meta = {}
 
-        has_images = bool(image_paths)
-        total_tasks = len(chunks) + (1 if has_images else 0)
+        image_batches = [
+            image_paths[index:index + self.MAX_IMAGES]
+            for index in range(0, len(image_paths), self.MAX_IMAGES)
+        ]
+        total_tasks = len(chunks) + len(image_batches)
         if not total_tasks:
             return {
                 "line_items": [],
@@ -348,7 +352,9 @@ class AIProcessor:
 
         lock = threading.Lock()
         text_done = 0
+        image_done = 0
         results: List[tuple] = []
+        failures = []
 
         def report(kind: str, i: int, n: int):
             if progress:
@@ -359,23 +365,31 @@ class AIProcessor:
         try:
             for idx, chunk in enumerate(chunks):
                 futures[pool.submit(self._generate, chunk, chunk)] = ("text", idx)
-            if has_images:
-                futures[pool.submit(self._classify_images, image_paths)] = ("images", 0)
+            for idx, batch in enumerate(image_batches):
+                futures[pool.submit(self._classify_images, batch)] = ("images", idx)
             for fut in as_completed(futures):
                 kind, idx = futures[fut]
-                result = fut.result()
+                try:
+                    result = fut.result()
+                except Exception as exc:
+                    failures.append((kind, idx, exc))
+                    continue
                 if kind == "text":
                     with lock:
                         text_done += 1
                         done = text_done
                     report("text", done, len(chunks))
                 else:
-                    report("images", 1, 1)
+                    image_done += 1
+                    report("images", image_done, len(image_batches))
                 results.append((kind, idx, result))
         except Exception:
             pool.shutdown(wait=False, cancel_futures=True)
             raise
         pool.shutdown(wait=True)
+
+        if not results and failures:
+            raise failures[0][2]
 
         for _kind, _idx, result in sorted(
             results, key=lambda r: (r[0] == "images", r[1])
@@ -383,6 +397,10 @@ class AIProcessor:
             self._merge(merged, meta, result)
 
         line_items = self._filter_items(merged.line_items)
+        warnings = [
+            f"{kind.capitalize()} classification failed: {exc}"
+            for kind, _idx, exc in failures
+        ]
 
         return {
             "line_items": line_items,
@@ -392,6 +410,7 @@ class AIProcessor:
             "mandatory": self._dedupe(merged.mandatory_requirements),
             "dates": self._dedupe(merged.dates),
             "meta": meta,
+            "warnings": warnings,
         }
 
     @staticmethod

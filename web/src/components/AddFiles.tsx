@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { addJobFiles } from "../api";
+import { isSupportedItbFile, ITB_FILE_ACCEPT } from "../itbFiles";
 import type { Job } from "../types";
-
-// File types accepted for appending to an existing ITB run.
-const ALLOWED = [".pdf", ".docx", ".xlsx", ".xlsm", ".png", ".jpg", ".jpeg", ".webp", ".bmp"];
-
-/** Return true when a filename has an accepted extension. */
-function isAllowed(name: string): boolean {
-  const lower = name.toLowerCase();
-  return ALLOWED.some((ext) => lower.endsWith(ext));
-}
 
 interface Props {
   jobId: string;
@@ -29,7 +21,7 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
   /** Filter a file list down to the accepted extensions. */
   const pick = (list: FileList | null) => {
     if (!list) return;
-    setFiles(Array.from(list).filter((f) => isAllowed(f.name)));
+    setFiles(Array.from(list).filter((f) => isSupportedItbFile(f.name)));
   };
 
   /** Upload the selected files and start the incremental reprocess. */
@@ -72,7 +64,7 @@ export default function AddFiles({ jobId, onProcessed, onError }: Props) {
             const input = document.createElement("input");
             input.type = "file";
             input.multiple = true;
-            input.accept = ALLOWED.join(",");
+            input.accept = ITB_FILE_ACCEPT;
             input.onchange = () => pick(input.files);
             input.click();
           }}

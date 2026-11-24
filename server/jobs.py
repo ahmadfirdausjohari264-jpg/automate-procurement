@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .history import history_store
+from .email_drafts import build_email_draft
 from .pipeline import rebuild_artifacts, run_pipeline
-from .upload_guard import UploadValidationError, save_uploads
+from .upload_guard import ALLOWED_EXTENSIONS, UploadValidationError, save_uploads
 
 # Where uploaded files and per-job output workspaces are stored.
 UPLOAD_ROOT = Path("./data/uploads")
@@ -54,6 +55,7 @@ class Job:
     output_path: Optional[str] = None
     files: List[str] = field(default_factory=list)
     data: Optional[Dict] = None
+    email_draft: Optional[Dict] = None
     config: Optional[Dict] = None
     versions: List[Dict] = field(default_factory=list)
     audit: List[Dict] = field(default_factory=list)
@@ -73,6 +75,7 @@ class Job:
             "error": self.error,
             "files": self.files,
             "result": self._result_summary(),
+            "email_draft": self.email_draft,
             "versions": self.versions,
             "audit": self.audit[-100:],
             "owner": self.owner,
@@ -94,6 +97,7 @@ class Job:
             output_path=record.get("output_path"),
             files=record.get("files", []),
             data=record.get("data"),
+            email_draft=record.get("email_draft"),
             config=record.get("config"),
             versions=record.get("versions", []),
             audit=record.get("audit", []),
@@ -191,14 +195,19 @@ class JobManager:
                 ),
             )
             job.config = self._build_config(model, include_images, pattern, skip_files, result["processed"], provider)
+            has_warnings = bool(result["data"].get("warnings"))
             self._update(
                 job,
                 status="done",
                 stage="done",
-                message="Specification sheet generated",
+                message=(
+                    "Specification sheet generated with warnings"
+                    if has_warnings
+                    else "Specification sheet generated"
+                ),
                 output_path=result["output_path"],
                 data=result["data"],
-                log="Pipeline complete",
+                log="Pipeline complete with warnings" if has_warnings else "Pipeline complete",
             )
             v = self._snapshot_version(job, "run")
             self._audit(
@@ -424,6 +433,154 @@ class JobManager:
             )
         return job
 
+    def generate_email_draft(self, job_id: str, *, regenerate: bool = False,
+                             mode: str = "pipeline", actor: Optional[str] = None) -> Job:
+        """Create a draft from the current specification without changing it."""
+        if mode not in {"scratch", "pipeline"}:
+            raise JobEditError("Email draft mode must be 'scratch' or 'pipeline'.", 400)
+        job = self.get(job_id)
+        if job is None:
+            raise JobEditError("Job not found.", 404)
+        with self._lock:
+            if job.status != "done" or not job.data:
+                raise JobEditError(
+                    "The specification must be complete before generating an email draft.",
+                    409,
+                )
+            previous = job.email_draft
+            if previous and not regenerate:
+                return job
+            draft = build_email_draft(job, mode=mode)
+            if previous:
+                uploaded = [
+                    item for item in previous.get("available_attachments") or []
+                    if item.get("kind") == "uploaded"
+                ]
+                draft["available_attachments"].extend(uploaded)
+                draft["uploaded_attachments"] = [
+                    item["id"] for item in uploaded
+                ]
+            job.email_draft = draft
+            action = "email_draft_regenerated" if previous else "email_draft_created"
+            version_tag = draft.get("source_version_tag") or "current specification"
+            origin = (
+                f"generated from {version_tag}"
+                if mode == "pipeline"
+                else "created blank for writing from scratch"
+            )
+            prior_id = f"; replaced draft {previous['id']}" if previous else ""
+            self._audit(
+                job,
+                action,
+                f"Email draft {draft['id']} {origin}{prior_id}",
+                version=draft.get("source_version_id"),
+                actor=actor,
+                object_id=draft["id"],
+            )
+            history_store.save(job)
+        return job
+
+    def add_email_attachments(self, job_id: str, files: List,
+                              actor: Optional[str] = None) -> Job:
+        """Store user-selected files as optional email draft attachments."""
+        job = self.get(job_id)
+        if job is None:
+            raise JobEditError("Job not found.", 404)
+        with self._lock:
+            if job.status != "done" or not job.email_draft:
+                raise JobEditError("Create an email draft before adding attachments.", 409)
+            destination = WORKSPACE_ROOT / job.id / "email_attachments"
+            try:
+                names = save_uploads(
+                    files,
+                    destination,
+                    allowed_extensions=ALLOWED_EXTENSIONS,
+                )
+            except UploadValidationError as exc:
+                raise JobEditError(str(exc), 400) from exc
+            attachments = list(job.email_draft.get("available_attachments") or [])
+            existing_ids = {item.get("id") for item in attachments}
+            added = [
+                {"id": f"uploaded:{name}", "name": name, "kind": "uploaded"}
+                for name in names
+                if f"uploaded:{name}" not in existing_ids
+            ]
+            job.email_draft["available_attachments"] = attachments + added
+            job.email_draft["uploaded_attachments"] = list(
+                dict.fromkeys(
+                    list(job.email_draft.get("uploaded_attachments") or []) +
+                    [item["id"] for item in added]
+                )
+            )
+            job.email_draft["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            self._audit(
+                job,
+                "email_draft_attachment_added",
+                f"{len(added)} attachment(s) added to email draft {job.email_draft['id']}",
+                version=job.email_draft.get("source_version_id"),
+                actor=actor,
+                object_id=job.email_draft["id"],
+            )
+            history_store.save(job)
+        return job
+
+    def save_email_draft(self, job_id: str, values: Dict,
+                         actor: Optional[str] = None) -> Job:
+        """Save editable email fields and append draft-specific audit events."""
+        job = self.get(job_id)
+        if job is None:
+            raise JobEditError("Job not found.", 404)
+        with self._lock:
+            if job.status != "done" or not job.email_draft:
+                raise JobEditError("Generate an email draft before saving it.", 409)
+            mode = values.get("mode", job.email_draft.get("mode", "scratch"))
+            if mode not in {"scratch", "pipeline"}:
+                raise JobEditError("Email draft mode must be 'scratch' or 'pipeline'.", 400)
+
+            draft = dict(job.email_draft)
+            selected = list(dict.fromkeys(values.get("selected_attachments") or []))
+            available = {
+                item["id"] for item in draft.get("available_attachments") or []
+            }
+            unknown = [item for item in selected if item not in available]
+            if unknown:
+                raise JobEditError("One or more selected attachments are not available.", 400)
+
+            updates = {
+                "to": values.get("to", ""),
+                "cc": values.get("cc", ""),
+                "bcc": values.get("bcc", ""),
+                "mode": mode,
+                "subject": values.get("subject", ""),
+                "body": values.get("body", ""),
+                "selected_attachments": selected,
+                "updated_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            changed = any(draft.get(key) != value for key, value in updates.items()
+                          if key != "updated_at")
+            draft.update(updates)
+            if changed:
+                draft["edited"] = True
+                self._audit(
+                    job,
+                    "email_draft_edited",
+                    f"Email draft {draft['id']} edited",
+                    version=draft.get("source_version_id"),
+                    actor=actor,
+                    object_id=draft["id"],
+                )
+            self._audit(
+                job,
+                "email_draft_saved",
+                f"Email draft {draft['id']} saved",
+                version=draft.get("source_version_id"),
+                actor=actor,
+                object_id=draft["id"],
+            )
+            job.email_draft = draft
+            history_store.save(job)
+        return job
+
     def _commit_item_change(self, job: Job, new_data: Dict, *, reason: str,
                             action: str, detail: str, message: str,
                             actor: Optional[str]) -> None:
@@ -494,7 +651,8 @@ class JobManager:
         return version
 
     def _audit(self, job: Job, action: str, detail: str = "",
-               version: Optional[int] = None, actor: Optional[str] = None):
+               version: Optional[int] = None, actor: Optional[str] = None,
+               object_id: Optional[str] = None):
         """Append an immutable event to a job's audit trail."""
         event = {
             "ts": datetime.now().isoformat(timespec="seconds"),
@@ -504,6 +662,8 @@ class JobManager:
         }
         if version is not None:
             event["version"] = version
+        if object_id is not None:
+            event["object_id"] = object_id
         with self._lock:
             job.audit.append(event)
 

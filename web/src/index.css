@@ -46,6 +46,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #16181e inset;
+  box-shadow: 0 0 0 1000px #16181e inset;
+  -webkit-text-fill-color: #f8fafc;
+  caret-color: #f8fafc;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .bg-maroon {
   background-color: #e63946;
   background-image: linear-gradient(180deg, #4d0000 0%, #e63946 100%);
@@ -90,4 +101,37 @@ body {
 }
 .animate-pulse-dot {
   animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes history-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes history-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.history-drawer-panel {
+  animation: history-drawer-in 200ms ease-out both;
+}
+
+.history-drawer-backdrop {
+  animation: history-backdrop-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .history-drawer-panel,
+  .history-drawer-backdrop {
+    animation-duration: 1ms;
+  }
 }

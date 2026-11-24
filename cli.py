@@ -5,7 +5,6 @@ Mirrors the web backend: reads a folder of ITB PDFs (and screenshots),
 classifies them with Gemini and writes a formatted RFQ specification sheet.
 """
 import click
-from pathlib import Path
 
 try:
     from dotenv import load_dotenv
@@ -14,10 +13,8 @@ except ImportError:
     pass
 
 from extractors.pdf_extractor import PDFExtractor
-from extractors.office_extractor import OfficeExtractor
-from processors.ai_processor import AIProcessor
-from server.ai_providers import provider_label
-from generators.enhanced_spec_sheet import EnhancedSpecSheetGenerator
+from extractors.universal_extractor import UniversalExtractor
+from server.pipeline import run_pipeline
 from generators.rfq_dispatcher import RFQDispatcher
 
 
@@ -35,8 +32,8 @@ def cli():
 @cli.command()
 @click.option('--itb-dir', default='./data/itb', help='Directory containing ITB files')
 @click.option('--output', default='./outputs/specification_sheet.docx', help='Output spec sheet path')
-@click.option('--pattern', default='*ITB*', help='Filename glob of source PDFs (default: *ITB*)')
-@click.option('--images', default=None, help='Comma-separated image globs to include (default: png/jpg/jpeg/webp/bmp)')
+@click.option('--pattern', default='*ITB*', help='Filename glob of source files (default: *ITB*)')
+@click.option('--images', default=None, help='Comma-separated image globs to include (default: all supported graphics)')
 @click.option('--no-images', is_flag=True, help='Do not send images to Gemini')
 @click.option('--model', default=None, help='AI model (default: provider default)')
 @click.option('--provider', default=None, type=click.Choice(['gemini', 'openai', 'anthropic'], case_sensitive=False),
@@ -45,71 +42,25 @@ def cli():
 def extract(itb_dir, output, pattern, images, no_images, model, provider, skip):
     """Steps 1 & 2: extract ITB content and generate the spec sheet."""
     click.echo('Step 1: ITB Review & Line Item Extraction...')
-    pdf_ext = PDFExtractor()
-    office_ext = OfficeExtractor()
-    results = pdf_ext.extract_itb_folder(itb_dir, pattern=pattern)
-    results += office_ext.extract_office_folder(itb_dir, pattern=pattern)
-    if not results:
-        raise click.ClickException(
-            f'No readable PDF, Word or Excel files matching "{pattern}" found in {itb_dir}'
-        )
-
-    # Every PDF is read by default; only exact filenames listed here are skipped.
-    skip_set = {s.strip().lower() for s in skip.split(',') if s.strip()}
-    ok = [r for r in results if not r.get('error')]
-    docs = [r for r in ok if r['filename'].strip().lower() not in skip_set]
-    for r in ok:
-        if r['filename'].strip().lower() in skip_set:
-            click.echo(f'  - skipping (settings): {r["filename"]}')
-    source_files = [r['filename'] for r in ok]
-    click.echo(f'  - {len(results)} file(s) matched "{pattern}"')
-    all_content = '\n\n'.join([r.get('content', '') for r in docs])
-
-    # Collect standalone screenshots / image files. PDF pages are never turned
-    # into images; text-only PDFs are read via their text layer.
-    image_paths = []
-    if not no_images:
-        globs = [g.strip() for g in images.split(',')] if images else None
-        images_found = pdf_ext.collect_image_files(itb_dir, patterns=globs)
-        image_paths += images_found
-        source_files += [Path(p).name for p in images_found]
-        if image_paths:
-            click.echo(f'  - {len(image_paths)} image(s) will be sent to the AI provider')
-
     try:
-        processor = AIProcessor(provider=provider, model=model)
-    except RuntimeError as e:
-        raise click.ClickException(str(e))
-    click.echo(f'Classifying content with {provider_label(processor.provider)} (separating line items from requirements)...')
-    reqs = processor.classify(
-        all_content,
-        image_paths=image_paths,
-        progress=lambda kind, i, n: click.echo(f'  - classifying {kind} {i}/{n}'),
-    )
+        result = run_pipeline(
+            input_dir=itb_dir,
+            output_path=output,
+            model=model,
+            provider=provider,
+            include_images=not no_images,
+            image_patterns=[g.strip() for g in images.split(',') if g.strip()] if images else None,
+            pattern=pattern,
+            skip_files=[s.strip() for s in skip.split(',') if s.strip()],
+            progress=lambda stage, current, total, message: click.echo(f'  - {message}'),
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
 
-    # Assemble the data structure consumed by the DOCX generator.
-    line_items = reqs['line_items']
-    extracted_data = {
-        'files_processed': len(results),
-        'summary': f'Analyzed {len(results)} ITB documents from {itb_dir}',
-        'source_files': source_files,
-        'meta': reqs.get('meta', {}),
-        'line_items': line_items,
-        'line_items_count': len(line_items),
-        'technical_requirements': reqs['technical'],
-        'submission_rules': reqs['submission'],
-        'mandatory_requirements': reqs['mandatory'],
-        'commercial_requirements': reqs['commercial'],
-        'dates': reqs['dates']
-    }
     click.echo('Step 2: Generating specification sheet...')
-    gen = EnhancedSpecSheetGenerator()
-    out = gen.generate(extracted_data, output)
-    click.echo(click.style(f'Done: {out}', fg='green'))
-    click.echo(f'  - Files processed: {len(results)}')
-    click.echo(f'  - Line items extracted: {len(line_items)}')
-    click.echo(f'  - Technical reqs: {len(reqs["technical"])}')
-    click.echo(f'  - Submission rules: {len(reqs["submission"])}')
+    click.echo(click.style(f'Done: {result["output_path"]}', fg='green'))
+    click.echo(f'  - Files processed: {result["data"]["files_processed"]}')
+    click.echo(f'  - Line items extracted: {result["data"]["line_items_count"]}')
 
 
 @cli.command()
@@ -139,12 +90,12 @@ def dispatch(spec_sheet, vendor_file):
 
 @cli.command()
 @click.option('--itb-dir', default='./data/itb')
-@click.option('--pattern', default='*ITB*', help='Filename glob of source PDFs (default: *ITB*)')
+@click.option('--pattern', default='*ITB*', help='Filename glob of source files (default: *ITB*)')
 def analyze(itb_dir, pattern):
     """Quickly report which documents match and how much text was read from each."""
     pdf_ext = PDFExtractor()
     results = pdf_ext.extract_itb_folder(itb_dir, pattern=pattern)
-    results += OfficeExtractor().extract_office_folder(itb_dir, pattern=pattern)
+    results += UniversalExtractor().extract_folder(itb_dir, pattern=pattern)
     for r in results:
         if r.get('error'):
             click.echo(click.style(f'{r["filename"]}: {r["error"]}', fg='red'))

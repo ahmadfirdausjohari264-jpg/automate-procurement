@@ -1,103 +1,53 @@
-import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { HistoryItem } from "../types";
-import DynaBrand from "./DynaBrand";
 
-/** Compact relative time for history entries (e.g. "3h ago", "Jun 4"). */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const minutes = Math.round((Date.now() - d.getTime()) / 60000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-
-/** Colour of the status dot for each job state. */
-const DOT: Record<string, string> = {
-  done: "bg-teal",
-  error: "bg-danger",
-  running: "bg-red animate-pulse-dot",
-  queued: "bg-paper-200/40",
-};
-
-type WorkspaceTab = "dashboard" | "pipeline" | "directory" | "emails" | "settings";
+type WorkspaceTab = "dashboard" | "joblist" | "directory" | "emails" | "settings";
 
 interface Props {
-  items: HistoryItem[];
-  activeId: string | null;
   activeTab: WorkspaceTab;
-  loading: boolean;
   open: boolean;
   collapsed: boolean;
   running: boolean;
-  projectView: boolean;
   onClose: () => void;
   onToggle: () => void;
   onNavigate: (tab: WorkspaceTab) => void;
   onNew: () => void;
-  onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
-  onRename: (id: string, title: string) => void;
+  onGenerateEmail: () => void;
 }
 
-/**
- * Left-hand history rail listing past ITB runs (like a chat app's sidebar).
- * Static on desktop; an off-canvas drawer on small screens. Each entry can be
- * renamed inline and deleted (with a confirm step).
- */
+const navItems: { id: WorkspaceTab; label: string; icon: ReactNode }[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />,
+  },
+  {
+    id: "joblist",
+    label: "JobList",
+    icon: <path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7" />,
+  },
+  {
+    id: "directory",
+    label: "Client / Contractor List",
+    icon: <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1m4 0h1m-6 4h1m4 0h1m-5 7v-4h2v4" />,
+  },
+];
+
+/** Navigation sidebar; saved runs remain available from JobList history. */
 export default function HistorySidebar({
-  items,
-  activeId,
   activeTab,
-  loading,
   open,
   collapsed,
   running,
-  projectView,
   onClose,
   onToggle,
   onNavigate,
   onNew,
-  onSelect,
-  onDelete,
-  onRename,
+  onGenerateEmail,
 }: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Focus the rename input as soon as it appears.
-  useEffect(() => {
-    if (editingId) inputRef.current?.select();
-  }, [editingId]);
-
-  /** Enter rename mode for an entry. */
-  const startEdit = (item: HistoryItem) => {
-    setConfirmId(null);
-    setEditingId(item.id);
-    setDraft(item.title);
+  const navigate = (tab: WorkspaceTab) => {
+    onNavigate(tab);
+    onClose();
   };
-
-  /** Save the pending rename (if non-empty) and leave edit mode. */
-  const commitEdit = () => {
-    const value = draft.trim();
-    if (editingId && value) onRename(editingId, value);
-    setEditingId(null);
-  };
-
-  const navItems: { id: WorkspaceTab; label: string; icon: ReactNode }[] = [
-    { id: "dashboard" as const, label: "Dashboard", icon: <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" /> },
-    { id: "pipeline" as const, label: "Pipeline", icon: <path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7" /> },
-    { id: "directory" as const, label: "Client / Contractor List", icon: <path d="M3 21h18M5 21V7l7-4 7 4v14M9 10h1m4 0h1m-6 4h1m4 0h1m-5 7v-4h2v4" /> },
-    ...(projectView ? [{ id: "emails" as const, label: "Quotation Email", icon: <path d="M4 5h16v14H4zM4 7l8 6 8-6" /> }] : []),
-    { id: "settings" as const, label: "Settings", icon: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.6 2.8-.2-.1a1.7 1.7 0 0 0-1.8.2l-.2.1h-3.2l-.1-.2a1.7 1.7 0 0 0-1.6-1.1 1.7 1.7 0 0 0-1.1.4l-.2.1-2.8-1.6.1-.2a1.7 1.7 0 0 0-.2-1.8l-.1-.2v-3.2l.2-.1a1.7 1.7 0 0 0 1.1-1.6 1.7 1.7 0 0 0-.4-1.1l-.1-.2 1.6-2.8.2.1a1.7 1.7 0 0 0 1.8-.2l.2-.1h3.2l.1.2a1.7 1.7 0 0 0 1.6 1.1 1.7 1.7 0 0 0 1.1-.4l.2-.1 2.8 1.6-.1.2a1.7 1.7 0 0 0 .2 1.8l.1.2v3.2l-.2.1a1.7 1.7 0 0 0-1.1 1.6" /></> },
-  ];
 
   return (
     <>
@@ -107,7 +57,6 @@ export default function HistorySidebar({
           onClick={onClose}
         />
       )}
-
       <aside
         className={[
           "z-40 flex shrink-0 flex-col overflow-hidden border-r border-ink-800/80 bg-ink-950/55 backdrop-blur-xl",
@@ -118,17 +67,45 @@ export default function HistorySidebar({
           open ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
-        <div className={`flex items-center border-b border-ink-800 px-4 py-4 ${collapsed ? "md:h-16 md:flex-col md:justify-center md:gap-1 md:px-0" : "justify-between"}`}>
-          <DynaBrand compact={collapsed} className={collapsed ? "md:justify-center" : ""} />
+        <div
+          className={`flex items-center border-b border-ink-800 px-4 py-4 ${
+            collapsed ? "md:h-16 md:justify-center md:px-0" : "h-16 justify-between"
+          }`}
+        >
+          <div className={`flex min-w-0 items-center gap-2 ${collapsed ? "md:hidden" : ""}`}>
+            <svg
+              className="h-5 w-5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="3"
+              strokeLinecap="square"
+              aria-hidden="true"
+            >
+              <path d="M3 4 11 12 3 20" stroke="#4A4A4A" />
+              <path d="m13 4 8 8-8 8" stroke="#E63946" />
+            </svg>
+            <span className="whitespace-nowrap font-mono text-sm font-bold tracking-[0.16em] text-paper-50">
+              DYNACONSURV
+            </span>
+          </div>
           <button
             onClick={onToggle}
-            className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded border border-ink-700 text-paper-200/90 transition hover:border-rose/50 hover:text-rose md:flex ${collapsed ? "md:h-5 md:w-5" : ""}`}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-ink-700 bg-ink-900 text-paper-200/90 transition hover:border-rose/60 hover:bg-ink-800"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-expanded={!collapsed}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {collapsed ? <path d="m9 18 6-6-6-6" /> : <path d="m15 18-6-6 6-6" />}
+            <svg
+              className={`h-4 w-4 transition-transform duration-200 ${collapsed ? "rotate-180" : ""}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m15 18-6-6 6-6" />
             </svg>
           </button>
           <button
@@ -139,214 +116,141 @@ export default function HistorySidebar({
           </button>
         </div>
 
-        <div className={`p-3 ${collapsed ? "md:px-2" : ""}`}>
-          <button
-            onClick={onNew}
-            disabled={running}
-            title={collapsed ? "New ITB" : undefined}
-            aria-label={collapsed ? "New ITB" : undefined}
-            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 font-mono text-xs font-semibold text-paper-50 transition hover:border-rose/50 hover:text-rose disabled:cursor-not-allowed disabled:opacity-50 ${collapsed ? "md:px-2" : ""}`}
-          >
-            <span className="text-rose">+</span>
-            <span className={`overflow-hidden whitespace-nowrap transition-opacity duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-20 md:opacity-100"}`}>
-              New ITB
-            </span>
-          </button>
-        </div>
-
-        <p className={`overflow-hidden whitespace-nowrap px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/80 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:px-0 md:py-0 md:opacity-0" : "md:max-h-8 md:opacity-100"}`}>
+        <p
+          className={`overflow-hidden whitespace-nowrap px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/80 transition-[max-height,opacity] duration-200 ${
+            collapsed ? "md:max-h-0 md:px-0 md:py-0 md:opacity-0" : "md:max-h-8 md:opacity-100"
+          }`}
+        >
           workspace
         </p>
         <nav className={`px-2 pb-3 ${collapsed ? "md:px-1" : ""}`}>
           <ul className="space-y-1">
-            {navItems.map((item) => (
-              <li key={item.id}>
-                <button
-                  onClick={() => {
-                    onNavigate(item.id);
-                    onClose();
-                  }}
-                  title={collapsed ? item.label : undefined}
-                  aria-label={item.label}
-                  aria-current={activeTab === item.id ? "page" : undefined}
-                  className={`relative flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left font-mono text-xs transition ${
-                    activeTab === item.id
-                      ? "border-maroon-700 bg-maroon-800 text-paper-50"
-                      : "border-transparent text-paper-200/90 hover:border-ink-700 hover:bg-ink-900 hover:text-paper-50"
-                  } ${collapsed ? "md:justify-center md:px-1" : ""}`}
-                >
-                  {activeTab === item.id && (
-                    <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r bg-red" />
-                  )}
-                  <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    {item.icon}
-                  </svg>
-                  <span className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"}`}>
-                    {item.label}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <p className={`overflow-hidden whitespace-nowrap px-4 pb-2 pt-1 font-mono text-[11px] uppercase tracking-wide text-paper-200/80 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:px-0 md:py-0 md:opacity-0" : "md:max-h-8 md:opacity-100"}`}>
-          history
-        </p>
-
-        <nav className={`flex-1 overflow-y-auto px-2 pb-4 scrollbar-thin ${collapsed ? "md:px-1" : ""}`}>
-          {loading && items.length === 0 ? (
-            <p className={`px-3 py-4 font-mono text-xs text-paper-200/80 ${collapsed ? "md:hidden" : ""}`}>loading…</p>
-          ) : items.length === 0 ? (
-            <p className={`px-3 py-4 font-mono text-xs leading-relaxed text-paper-200/80 ${collapsed ? "md:hidden" : ""}`}>
-              No saved ITB runs yet.
-              <br />
-              Finished runs appear here.
-            </p>
-          ) : (
-            <ul className="space-y-1">
-              {items.map((item) => {
-                const active = item.id === activeId;
-                const editing = editingId === item.id;
-                const confirming = confirmId === item.id;
-
-                if (editing) {
-                  return (
-                    <li key={item.id}>
-                      <div className="rounded-lg border border-rose/40 bg-rose/10 p-2">
-                        <input
-                          ref={inputRef}
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") commitEdit();
-                            if (e.key === "Escape") setEditingId(null);
-                          }}
-                          onBlur={commitEdit}
-                          className="w-full rounded border border-ink-700 bg-ink-900 px-2 py-1.5 font-mono text-xs text-paper-50 focus:border-rose focus:outline-none"
-                        />
-                        <div className="mt-1.5 flex justify-end gap-2">
-                          <button
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => setEditingId(null)}
-                            className="font-mono text-[10px] text-paper-200/85 hover:text-paper-50"
-                          >
-                            cancel
-                          </button>
-                          <button
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={commitEdit}
-                            className="font-mono text-[10px] text-rose hover:text-maroon-light"
-                          >
-                            save
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                }
-
-                if (confirming) {
-                  return (
-                    <li key={item.id}>
-                      <div className="rounded-lg border border-danger/40 bg-danger/10 p-2.5">
-                        <p className="truncate font-mono text-[11px] text-paper-200/95">
-                          Delete “{item.title}”?
-                        </p>
-                        <div className="mt-1.5 flex justify-end gap-2">
-                          <button
-                            onClick={() => setConfirmId(null)}
-                            className="font-mono text-[10px] text-paper-200/85 hover:text-paper-50"
-                          >
-                            cancel
-                          </button>
-                          <button
-                            onClick={() => {
-                              setConfirmId(null);
-                              onDelete(item.id);
-                            }}
-                            className="font-mono text-[10px] text-danger hover:text-danger/80"
-                          >
-                            delete
-                          </button>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                }
-
+            {navItems.map((item) => {
+              const active =
+                activeTab === item.id || (item.id === "joblist" && activeTab === "emails");
+              if (item.id === "joblist") {
                 return (
-                  <li key={item.id} className="group relative">
-                    <button
-                      onClick={() => onSelect(item.id)}
-                      className={[
-                        "w-full rounded-lg border px-3 py-2.5 pr-14 text-left transition",
-                        collapsed ? "md:px-1 md:py-2.5 md:pr-1" : "",
+                  <li key={item.id}>
+                    <div
+                      className={`relative flex w-full items-center rounded-lg border transition ${
                         active
-                          ? "border-rose/40 bg-rose/10"
-                          : "border-transparent hover:border-ink-700 hover:bg-ink-900",
-                      ].join(" ")}
+                          ? "border-maroon-700 bg-maroon-800 text-paper-50"
+                          : "border-transparent text-paper-200/90 hover:border-ink-700 hover:bg-ink-900 hover:text-paper-50"
+                      } ${collapsed ? "md:justify-center" : "px-1"}`}
                     >
-                      <div className={`flex items-center gap-2 ${collapsed ? "md:justify-center" : ""}`}>
-                        <span
-                          className={[
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            DOT[item.status] ?? DOT.queued,
-                          ].join(" ")}
-                        />
-                        <span className={`min-w-0 flex-1 truncate overflow-hidden whitespace-nowrap font-mono text-xs font-medium text-paper-50 transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-[12rem] md:opacity-100"}`}>
-                          {item.title}
-                        </span>
-                        <span className={`shrink-0 overflow-hidden whitespace-nowrap font-mono text-[10px] text-paper-200/80 transition-[max-width,opacity] duration-200 ${collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-16 md:opacity-100"}`}>
-                          {formatWhen(item.created_at)}
-                        </span>
-                      </div>
-                      <div className={`mt-1 flex max-h-8 items-center justify-between gap-2 overflow-hidden pl-3.5 transition-[max-height,opacity] duration-200 ${collapsed ? "md:max-h-0 md:opacity-0" : "md:opacity-100"}`}>
-                        <span className="min-w-0 truncate font-mono text-[10px] text-paper-200/80">
-                          {item.subtitle}
-                        </span>
-                        <span className="shrink-0 font-mono text-[10px] text-paper-200/80">
-                          {item.line_items_count} item{item.line_items_count === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                    </button>
-
-                    <div className={`absolute right-1.5 top-1.5 hidden items-center gap-0.5 group-hover:flex ${collapsed ? "md:hidden" : ""}`}>
+                      {active && <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r bg-red" />}
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startEdit(item);
-                        }}
-                        title="Rename"
-                        className="flex h-6 w-6 items-center justify-center rounded text-paper-200/80 transition hover:bg-ink-800 hover:text-rose"
+                        onClick={() => navigate(item.id)}
+                        title={collapsed ? item.label : undefined}
+                        aria-label={item.label}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-2.5 text-left font-mono text-xs ${
+                          collapsed ? "md:justify-center md:px-1" : ""
+                        }`}
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        <svg
+                          className="h-4 w-4 shrink-0"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          {item.icon}
                         </svg>
+                        <span
+                          className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ${
+                            collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"
+                          }`}
+                        >
+                          {item.label}
+                        </span>
                       </button>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingId(null);
-                          setConfirmId(item.id);
+                        onClick={() => {
+                          onNew();
+                          onClose();
                         }}
-                        title="Delete"
-                        className="flex h-6 w-6 items-center justify-center rounded font-mono text-sm text-paper-200/80 transition hover:bg-danger/10 hover:text-danger"
+                        disabled={running}
+                        title={collapsed ? "New ITB" : undefined}
+                        aria-label="Create new ITB run"
+                        className={`inline-flex shrink-0 items-center justify-center rounded-md font-mono font-semibold text-rose transition hover:bg-rose/10 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          collapsed
+                            ? "gap-1 px-2 py-1 text-[10px] md:absolute md:right-0 md:top-0 md:h-4 md:w-4 md:gap-0 md:rounded-full md:bg-maroon-800 md:p-0 md:text-[10px]"
+                            : "mr-1 gap-1 px-2 py-1 text-[10px]"
+                        }`}
                       >
-                        ×
+                        <span>+</span>
+                        <span className={collapsed ? "md:hidden" : ""}>New ITB</span>
                       </button>
                     </div>
                   </li>
                 );
-              })}
-            </ul>
-          )}
-        </nav>
+              }
 
-        <div className={`border-t border-ink-800 px-4 py-3 font-mono text-[10px] text-paper-200/70 ${collapsed ? "md:px-2 md:text-center" : ""}`} title={collapsed ? `${items.length} saved run${items.length === 1 ? "" : "s"}` : undefined}>
-          <span className={collapsed ? "md:hidden" : ""}>{items.length} saved run{items.length === 1 ? "" : "s"}</span>
-          {collapsed && <span className="hidden md:inline">{items.length}</span>}
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => navigate(item.id)}
+                    title={collapsed ? item.label : undefined}
+                    aria-label={item.label}
+                    aria-current={active ? "page" : undefined}
+                    className={`relative flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left font-mono text-xs transition ${
+                      active
+                        ? "border-maroon-700 bg-maroon-800 text-paper-50"
+                        : "border-transparent text-paper-200/90 hover:border-ink-700 hover:bg-ink-900 hover:text-paper-50"
+                    } ${collapsed ? "md:justify-center md:px-1" : ""}`}
+                  >
+                    {active && <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-r bg-red" />}
+                    <svg
+                      className="h-4 w-4 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      {item.icon}
+                    </svg>
+                    <span
+                      className={`overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ${
+                        collapsed ? "md:max-w-0 md:opacity-0" : "md:max-w-48 md:opacity-100"
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <div className={`mt-auto border-t border-ink-800 p-3 ${collapsed ? "md:px-2" : ""}`}>
+          <button
+            type="button"
+            onClick={() => {
+              onGenerateEmail();
+              onClose();
+            }}
+            title={collapsed ? "Generate Email" : undefined}
+            aria-label="Generate Email"
+            className={`flex w-full items-center gap-3 rounded-lg border border-red/45 bg-red/10 px-3 py-3 text-left text-paper-50 transition hover:border-red hover:bg-red/15 hover:shadow-[0_0_18px_rgba(230,57,70,0.14)] ${
+              collapsed ? "md:justify-center md:px-0" : ""
+            }`}
+          >
+            <svg className="h-4 w-4 shrink-0 text-red" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2" />
+              <path d="m3 7 9 6 9-6" />
+            </svg>
+            <span className={`min-w-0 ${collapsed ? "md:hidden" : ""}`}>
+              <span className="block font-sans text-xs font-semibold">Generate Email</span>
+              <span className="mt-0.5 block font-mono text-[9px] text-paper-200/60">Email Composer</span>
+            </span>
+          </button>
         </div>
       </aside>
     </>

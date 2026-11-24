@@ -18,10 +18,15 @@ function fmtTs(ts: string): string {
  * (downloadable as a zip snapshot) plus the append-only audit trail of what
  * happened to this run and when.
  */
-export default function VersionsAudit({ job }: { job: Job }) {
+export default function VersionsAudit({
+  job,
+  onNextStep,
+}: {
+  job: Job;
+  onNextStep: () => void;
+}) {
   const versions = job.versions ?? [];
   const audit = job.audit ?? [];
-  if (versions.length === 0 && audit.length === 0) return null;
   const latestTag = versions.length > 0 ? versions[versions.length - 1].tag : null;
 
   return (
@@ -85,6 +90,16 @@ export default function VersionsAudit({ job }: { job: Job }) {
           ))}
         </ul>
       )}
+
+      <div className="mt-6 flex justify-end border-t border-ink-700/70 pt-4">
+        <button
+          type="button"
+          onClick={onNextStep}
+          className="rounded-lg bg-maroon px-4 py-2.5 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light"
+        >
+          Generate Email <span aria-hidden="true">→</span>
+        </button>
+      </div>
     </div>
   );
 }

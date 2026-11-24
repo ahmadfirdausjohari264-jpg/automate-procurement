@@ -13,10 +13,14 @@ from extractors.office_extractor import OfficeExtractor
 from extractors.pdf_extractor import PDFExtractor
 
 from .ai_providers import ImagePart, ProviderClient, extract_json
-from .upload_guard import ALLOWED_EXTENSIONS, UploadValidationError, save_uploads
+from .upload_guard import UploadValidationError, save_uploads
 
 MAX_TEXT_CHARS = 100_000
 MAX_IMAGE_PARTS = 12
+SUPPLIER_UPLOAD_EXTENSIONS = frozenset({
+    ".pdf", ".doc", ".docx", ".xlsx", ".xlsm", ".csv", ".pptx",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
+})
 
 
 class ExtractedSupplier(BaseModel):
@@ -91,8 +95,8 @@ def _extract_parts(paths: List[Path], temp_path: Path):
             if len(images) > MAX_IMAGE_PARTS:
                 raise ValueError(f"Upload at most {MAX_IMAGE_PARTS} image pages/files at a time.")
             continue
-        if extension == ".docx":
-            content = office.extract_docx_text(str(path))
+        if extension in {".docx", ".doc"}:
+            content = office.extract_word_text(str(path))
         elif extension in {".xlsx", ".xlsm"}:
             content = office.extract_xlsx_text(str(path))
         elif extension == ".pdf":
@@ -135,7 +139,7 @@ def parse_supplier_files(
         filenames = save_uploads(
             uploads,
             temp_path,
-            allowed_extensions=ALLOWED_EXTENSIONS | {".pptx", ".csv"},
+            allowed_extensions=SUPPLIER_UPLOAD_EXTENSIONS,
         )
         paths = [temp_path / filename for filename in filenames]
         parts = _extract_parts(paths, temp_path)

@@ -15,8 +15,9 @@ import AdminHistory from "./components/AdminHistory";
 import AiSettings from "./components/AiSettings";
 import ClientContractorWorkspace from "./components/ClientContractorWorkspace";
 import Dashboard from "./components/Dashboard";
-import DynaBrand from "./components/DynaBrand";
 import DropZone from "./components/DropZone";
+import EmailDraftPage from "./components/EmailDraftPage";
+import HistoryDrawer from "./components/HistoryDrawer";
 import HistorySidebar from "./components/HistorySidebar";
 import JobPanel from "./components/JobPanel";
 import Login from "./components/Login";
@@ -25,6 +26,8 @@ import RfqEmails from "./components/RfqEmails";
 import SettingsPanel, { parseSkipList } from "./components/SettingsPanel";
 import UsersAdmin from "./components/UsersAdmin";
 import VersionsAudit from "./components/VersionsAudit";
+import useOnClickOutside from "./hooks/useOnClickOutside";
+import { getFileTypeBadge } from "./itbFiles";
 import type { AuthUser, HistoryItem, Job, QuotaStatus } from "./types";
 
 /** Format a byte count as a short human-readable string (B / KB / MB). */
@@ -34,7 +37,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-type TabId = "dashboard" | "pipeline" | "directory" | "emails" | "settings";
+type TabId = "dashboard" | "joblist" | "directory" | "emails" | "settings";
 
 /** Human labels for AI providers, used by the API-key setup wall. */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -45,8 +48,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 /**
  * Root component: holds the selected files, starts a processing job and polls
- * it until it finishes, then renders the results. Past runs are listed in the
- * history sidebar on the left.
+ * it until it finishes, then renders the results. Past runs are available in
+ * the JobList history drawer.
  */
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -57,31 +60,49 @@ export default function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem("procurement-sidebar-collapsed") !== "false",
+    () => localStorage.getItem("procurement-sidebar-collapsed") === "true",
   );
   const [error, setError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [includeImages, setIncludeImages] = useState(true);
   const [skipFiles, setSkipFiles] = useState("");
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [tab, setTab] = useState<TabId>("dashboard");
+  const [showEmailDraft, setShowEmailDraft] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [directorySearchSeed, setDirectorySearchSeed] = useState("");
   const globalSearchRef = useRef<HTMLInputElement>(null);
-  // When a saved project is opened from history, reveal the extra navbar
-  // sections (supplier search, quotation email) and the per-run panels.
-  const [projectView, setProjectView] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Total size of the selected files, shown in the file summary bar.
   const totalSize = useMemo(() => files.reduce((sum, f) => sum + f.size, 0), [files]);
   const running = busy || pollId != null;
+  const closeProfileMenu = useCallback(() => setProfileOpen(false), []);
+  useOnClickOutside(profileMenuRef, closeProfileMenu);
 
   useEffect(() => {
     localStorage.setItem("procurement-sidebar-collapsed", String(sidebarCollapsed));
   }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const message = error?.startsWith("Failed to read Word document")
+      ? error
+      : job?.status === "error" && job.message.startsWith("Failed to read Word document")
+        ? job.message
+        : null;
+    if (!message) {
+      setToastMessage(null);
+      return;
+    }
+    setToastMessage(message);
+    const timer = window.setTimeout(() => setToastMessage(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [error, job?.id, job?.message, job?.status]);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -93,6 +114,7 @@ export default function App() {
       if (event.key === "Escape") {
         setSearchOpen(false);
         setProfileOpen(false);
+        setHistoryOpen(false);
       }
     };
     window.addEventListener("keydown", handleShortcut);
@@ -222,6 +244,7 @@ export default function App() {
     }
     setFiles(merged);
     setJob(null);
+    setShowEmailDraft(false);
     setError(null);
   };
 
@@ -231,14 +254,14 @@ export default function App() {
     setBusy(true);
     setError(null);
     setJob(null);
-    setProjectView(false);
+    setShowEmailDraft(false);
     try {
       const j = await createJob(files, { includeImages, skipFiles: parseSkipList(skipFiles) });
       setJob(j);
       setPollId(j.id);
       setSidebarOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      reportError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -247,11 +270,11 @@ export default function App() {
   /** Open a saved run from the sidebar and show its results. */
   const openHistory = async (id: string) => {
     setError(null);
+    setShowEmailDraft(false);
     setSidebarOpen(false);
     try {
       setJob(await getJob(id));
-      setProjectView(true);
-      setTab("pipeline");
+      setTab("joblist");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -281,6 +304,7 @@ export default function App() {
   /** Set up polling for an incremental reprocess after files were added. */
   const onFilesAdded = (updated: Job) => {
     setJob(updated);
+    setShowEmailDraft(false);
     setPollId(updated.id);
   };
 
@@ -288,11 +312,11 @@ export default function App() {
   const startNew = () => {
     setFiles([]);
     setJob(null);
+    setShowEmailDraft(false);
     setError(null);
     setSkipFiles("");
     setSidebarOpen(false);
-    setProjectView(false);
-    setTab("dashboard");
+    setTab("joblist");
   };
 
   /** Sign out: clear the session cookie and reset app state. */
@@ -305,12 +329,23 @@ export default function App() {
     setUser(null);
     setHistory([]);
     setJob(null);
+    setShowEmailDraft(false);
     setFiles([]);
-    setProjectView(false);
     setTab("dashboard");
   };
 
   const done = job?.status === "done";
+  const openEmailFromDirectory = () => {
+    setError(null);
+    setSidebarOpen(false);
+    if (!job || !done) {
+      setTab("joblist");
+      setError("Complete or open a JobList run before generating an email.");
+      return;
+    }
+    setShowEmailDraft(true);
+    setTab("joblist");
+  };
 
   // Gate the whole app behind the login screen until a session is confirmed.
   if (!authChecked) {
@@ -327,21 +362,15 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-grid">
       <HistorySidebar
-        items={history}
-        activeId={job?.id ?? null}
         activeTab={tab}
-        loading={historyLoading}
         open={sidebarOpen}
         collapsed={sidebarCollapsed}
         running={running}
-        projectView={projectView}
         onClose={() => setSidebarOpen(false)}
         onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
         onNavigate={setTab}
         onNew={startNew}
-        onSelect={openHistory}
-        onDelete={removeHistory}
-        onRename={renameRun}
+        onGenerateEmail={openEmailFromDirectory}
       />
 
       <div className="min-w-0 flex-1">
@@ -358,7 +387,9 @@ export default function App() {
                   <path d="M3 6h18M3 12h18M3 18h18" />
                 </svg>
               </button>
-              <DynaBrand />
+              <span className="whitespace-nowrap font-sans text-sm font-bold tracking-[0.14em] text-red">
+                DYNA CONSURV
+              </span>
               <div className="relative hidden w-[min(34vw,360px)] lg:block">
                 <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-paper-200/55" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
                   <circle cx="11" cy="11" r="7" />
@@ -366,6 +397,9 @@ export default function App() {
                 </svg>
                 <input
                   ref={globalSearchRef}
+                  id="global_search_input"
+                  name="global_search_no_autofill"
+                  autoComplete="new-password"
                   value={globalSearch}
                   onFocus={() => setSearchOpen(true)}
                   onChange={(event) => {
@@ -429,34 +463,28 @@ export default function App() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <button
-                onClick={startNew}
-                disabled={running}
-                className="hidden rounded-lg bg-maroon px-3 py-2 font-sans text-xs font-semibold text-paper-50 shadow-lg shadow-red/10 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50 sm:inline-flex"
-              >
-                + New Project
-              </button>
-              <span className="hidden items-center gap-2 rounded-full border border-teal/20 bg-teal/5 px-3 py-1.5 font-mono text-[10px] text-paper-200/80 xl:flex">
-                <span className="h-1.5 w-1.5 rounded-full bg-teal animate-pulse-dot" />
-                ai vision pipeline
-              </span>
-              <a
-                href={quota?.link ?? "https://ai.dev/rate-limit"}
-                target="_blank"
-                rel="noreferrer"
-                title={quota?.detail ?? "Gemini grounding quota (last check)"}
-                className="hidden items-center gap-2 rounded-full border border-danger/20 bg-danger/5 px-3 py-1.5 font-mono text-[10px] text-paper-200/80 lg:flex"
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${
-                  quota?.state === "ok" ? "bg-teal" : quota?.state === "exhausted" ? "bg-danger" : "bg-paper-200/40"
-                }`} />
-                quota: {!quota ? "…" : quota.state === "unknown" ? "not checked" : quota.state}
-              </a>
-              <div className="relative">
+              {tab === "joblist" && !needsSetup && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryOpen(true);
+                    void loadHistory();
+                  }}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/70 px-3 font-mono text-[10px] text-paper-200/80 transition hover:border-red/60 hover:text-paper-50"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                  </svg>
+                  HISTORY
+                </button>
+              )}
+              <div ref={profileMenuRef} className="relative">
                 <button
                   onClick={() => setProfileOpen((open) => !open)}
                   aria-expanded={profileOpen}
-                  aria-label="Open profile menu"
+                  aria-haspopup="menu"
+                  aria-label={`Open profile menu for ${user.username}`}
                   className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-ink-800"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-md border border-ink-700 bg-ink-900 text-paper-200/80">
@@ -471,32 +499,103 @@ export default function App() {
                     <path d="m7 10 5 5 5-5" />
                   </svg>
                 </button>
-                {profileOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-52 rounded-xl border border-ink-700 bg-ink-900 p-3 shadow-2xl shadow-black/50">
+                <div
+                  role="menu"
+                  aria-label="Profile menu"
+                  aria-hidden={!profileOpen}
+                  className={`absolute right-0 top-full z-50 mt-2 w-64 origin-top-right rounded-xl border border-ink-700 bg-ink-900 p-3 shadow-2xl shadow-black/50 transition-[opacity,transform,visibility] duration-150 ease-out ${
+                    profileOpen
+                      ? "visible translate-y-0 scale-100 opacity-100"
+                      : "invisible pointer-events-none -translate-y-1 scale-95 opacity-0"
+                  }`}
+                >
+                  <div className="border-b border-ink-700 pb-3">
                     <p className="truncate font-sans text-xs font-semibold text-paper-50">{user.display_name || user.username}</p>
                     <p className="mt-1 font-mono text-[10px] text-paper-200/55">{user.username} · {user.role}</p>
+                  </div>
+                  <div className="space-y-2 border-b border-ink-700 py-3">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-paper-200/45">System &amp; AI status</p>
+                    <div className="flex items-center justify-between gap-3 font-mono text-[10px] text-paper-200/80">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-teal animate-pulse-dot" />
+                        JobList document processing
+                      </span>
+                      <span className="text-teal">active</span>
+                    </div>
+                    <a
+                      href={quota?.link ?? "https://ai.dev/rate-limit"}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={quota?.detail ?? "Gemini grounding quota (last check)"}
+                      role="menuitem"
+                      className="flex items-center justify-between gap-3 font-mono text-[10px] text-paper-200/80 transition hover:text-paper-50"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          quota?.state === "ok" ? "bg-teal" : quota?.state === "exhausted" ? "bg-danger" : "bg-paper-200/40"
+                        }`} />
+                        quota: {!quota ? "…" : quota.state === "unknown" ? "not checked" : quota.state}
+                      </span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                  <div className="space-y-1 pt-3">
                     <button
                       onClick={() => {
                         setTab("settings");
                         setProfileOpen(false);
                       }}
-                      className="mt-3 w-full rounded-md border border-ink-700 px-2 py-1.5 text-left font-mono text-[10px] text-paper-200/80 transition hover:border-red/50 hover:text-paper-50"
+                      role="menuitem"
+                      className="w-full rounded-md px-2 py-2 text-left font-mono text-[10px] text-paper-200/80 transition hover:bg-ink-800 hover:text-paper-50"
                     >
-                      Account settings
+                      Account Settings
+                    </button>
+                    <button
+                      onClick={signOut}
+                      role="menuitem"
+                      className="w-full rounded-md px-2 py-2 text-left font-mono text-[10px] text-danger transition hover:bg-danger/10"
+                    >
+                      Sign Out
                     </button>
                   </div>
-                )}
+                </div>
               </div>
-              <button
-                onClick={signOut}
-                className="rounded-lg border border-ink-700 px-2.5 py-1.5 font-mono text-[10px] text-paper-200/80 transition hover:border-danger/50 hover:text-danger"
-                title="Sign out"
-              >
-                Sign Out
-              </button>
             </div>
           </div>
         </header>
+
+        {historyOpen && (
+          <HistoryDrawer
+            items={history}
+            loading={historyLoading}
+            onClose={() => setHistoryOpen(false)}
+            onSelect={(id) => {
+              setHistoryOpen(false);
+              void openHistory(id);
+            }}
+            onDelete={removeHistory}
+            onRename={renameRun}
+          />
+        )}
+
+        {toastMessage && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="fixed bottom-5 right-5 z-[80] flex max-w-lg items-start gap-3 rounded-xl border border-danger/40 bg-ink-900 px-4 py-3 shadow-2xl shadow-black/50"
+          >
+            <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-danger" />
+            <p className="flex-1 font-mono text-xs leading-relaxed text-paper-50">{toastMessage}</p>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              aria-label="Dismiss error notification"
+              className="text-paper-200/55 transition hover:text-paper-50"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         <div className="w-full px-4 py-4 sm:px-6 lg:px-8">
           {error && (
@@ -536,37 +635,45 @@ export default function App() {
               history={history}
               job={job}
               running={running}
+              attendanceKey={user.username}
               onFiles={(incoming) => {
                 onFiles(incoming);
-                setTab("pipeline");
+                setTab("joblist");
               }}
               onNewRun={startNew}
               onOpenDirectory={(query) => {
                 setDirectorySearchSeed(query ?? "");
                 setTab("directory");
               }}
-              onOpenPipeline={() => setTab("pipeline")}
               onError={reportError}
             />
           </section>
 
-          {/* ── 01 · pipeline: upload, run, results ─────────────────────── */}
-          <section className={tab === "pipeline" && !needsSetup ? "" : "hidden"}>
+          {/* ── 01 · JobList: upload, run, results ──────────────────────── */}
+          <section className={tab === "joblist" && (!needsSetup || (showEmailDraft && done)) ? "" : "hidden"}>
+            <div className={showEmailDraft && done ? "hidden" : ""}>
             <section className="pb-8 pt-6">
-              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Section 01 / 02 — Pipeline</p>
+              <p className="font-mono text-xs uppercase tracking-[0.3em] text-rose/80">Section 01 / 02 — JobList</p>
               <h1 className="mt-3 font-mono text-3xl font-semibold leading-tight text-paper-50 sm:text-4xl">
                 Drop an ITB folder.
                 <br />
                 Get a spec sheet.
               </h1>
               <p className="mt-4 max-w-2xl font-sans text-sm leading-relaxed text-paper-200/90">
-                Upload your Invitation To Bid documents and screenshots. Everything runs in the background —
-                PDFs, Word / Excel files and images are read, line items are separated from requirements by your AI provider, and a
-                formatted RFQ specification sheet comes out the other side.
+                Upload your Invitation To Bid documents and media. PDFs, Word, text, spreadsheets, presentations,
+                images and audio metadata are read and combined before your AI provider separates line items from
+                requirements and generates a formatted RFQ specification sheet.
               </p>
             </section>
 
-            <DropZone onFiles={onFiles} disabled={running} />
+            <DropZone
+              onFiles={onFiles}
+              onOpenHistory={() => {
+                setHistoryOpen(true);
+                void loadHistory();
+              }}
+              disabled={running}
+            />
 
             {files.length > 0 && (
               <div className="mt-5 rounded-2xl border border-ink-700 bg-ink-900/70 p-5">
@@ -588,15 +695,21 @@ export default function App() {
                 </div>
 
                 <ul className="mt-3 flex flex-wrap gap-2">
-                  {files.map((f) => (
-                    <li
-                      key={f.name}
-                      className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/95"
-                    >
-                      <span className="max-w-[240px] truncate">{f.name}</span>
-                      <span className="text-paper-200/80">{formatBytes(f.size)}</span>
-                    </li>
-                  ))}
+                  {files.map((f) => {
+                    const badge = getFileTypeBadge(f.name);
+                    return (
+                      <li
+                        key={f.name}
+                        className="flex min-w-0 items-center gap-2 rounded-lg border border-ink-700 bg-ink-800 px-3 py-1.5 font-mono text-xs text-paper-200/95"
+                      >
+                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[9px] uppercase ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                        <span className="max-w-[240px] truncate">{f.name}</span>
+                        <span className="shrink-0 text-paper-200/60">{formatBytes(f.size)}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 <SettingsPanel
@@ -623,7 +736,7 @@ export default function App() {
                     disabled={running}
                     className="rounded-lg bg-maroon px-6 py-2.5 font-mono text-sm font-semibold text-paper-50 transition hover:bg-maroon-light disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {running ? "PROCESSING…" : "RUN PIPELINE"}
+                    {running ? "PROCESSING…" : "RUN JOBLIST"}
                   </button>
                 </div>
               </div>
@@ -633,11 +746,30 @@ export default function App() {
               <div className="mt-5 space-y-5">
                 <JobPanel job={job} />
                 {done && (
-                  <AddFiles jobId={job.id} onProcessed={onFilesAdded} onError={(msg) => setError(msg)} />
+                  <button
+                    onClick={() => setTab("emails")}
+                    className="rounded-lg border border-ink-700 px-3 py-2 font-mono text-xs text-paper-200/80 transition hover:border-red/50 hover:text-paper-50"
+                  >
+                    Open Quotation Emails
+                  </button>
+                )}
+                {done && (
+                  <AddFiles jobId={job.id} onProcessed={onFilesAdded} onError={reportError} />
                 )}
                 {done && <Results job={job} onUpdated={setJob} />}
-                {done && <VersionsAudit job={job} />}
+                {done && <VersionsAudit job={job} onNextStep={() => setShowEmailDraft(true)} />}
               </div>
+            )}
+            <footer className="mt-10 border-t border-ink-700/70 pt-4 font-mono text-[10px] text-paper-200/50">
+              DYNA CONSURV · local pipeline · powered by Gemini, OpenAI &amp; Anthropic
+            </footer>
+            </div>
+            {showEmailDraft && done && job && (
+              <EmailDraftPage
+                job={job}
+                onBack={() => setShowEmailDraft(false)}
+                onJobUpdated={setJob}
+              />
             )}
           </section>
 
@@ -650,6 +782,7 @@ export default function App() {
               initialQuery={directorySearchSeed}
               onError={reportError}
               onUpdated={setJob}
+              onGenerateEmail={openEmailFromDirectory}
             />
           </section>
 
@@ -671,7 +804,7 @@ export default function App() {
             ) : (
               <div className="rounded-2xl border border-dashed border-ink-700 bg-ink-900/40 p-8 text-center">
                 <p className="font-mono text-xs text-paper-200/85">
-                  This project's pipeline must be finished before quotation emails are generated.
+                  This project's JobList run must be finished before quotation emails are generated.
                 </p>
               </div>
             )}

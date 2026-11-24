@@ -1,13 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-
-// File types accepted by the drop zone.
-const ALLOWED = [".pdf", ".docx", ".xlsx", ".xlsm", ".png", ".jpg", ".jpeg", ".webp", ".bmp"];
-
-/** Return true when a filename has an accepted extension. */
-function isAllowed(name: string): boolean {
-  const lower = name.toLowerCase();
-  return ALLOWED.some((ext) => lower.endsWith(ext));
-}
+import { isSupportedItbFile, ITB_FILE_ACCEPT } from "../itbFiles";
 
 /** Resolve a dropped folder entry to a File. */
 function readFile(entry: FileSystemFileEntry): Promise<File> {
@@ -34,7 +26,7 @@ function readAllEntries(reader: FileSystemDirectoryReader): Promise<FileSystemEn
 async function traverse(entry: FileSystemEntry, files: File[]): Promise<void> {
   if (entry.isFile) {
     const file = await readFile(entry as FileSystemFileEntry);
-    if (isAllowed(file.name)) files.push(file);
+    if (isSupportedItbFile(file.name)) files.push(file);
   } else if (entry.isDirectory) {
     const entries = await readAllEntries((entry as FileSystemDirectoryEntry).createReader());
     for (const child of entries) await traverse(child, files);
@@ -44,11 +36,12 @@ async function traverse(entry: FileSystemEntry, files: File[]): Promise<void> {
 /** Props for the DropZone component. */
 interface Props {
   onFiles: (files: File[]) => void;
+  onOpenHistory: () => void;
   disabled?: boolean;
 }
 
 /** Drag-and-drop / browse area for selecting an ITB folder or files. */
-export default function DropZone({ onFiles, disabled }: Props) {
+export default function DropZone({ onFiles, onOpenHistory, disabled }: Props) {
   const [dragging, setDragging] = useState(false);
   const dirInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -71,7 +64,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
         for (const entry of entries) await traverse(entry, files);
       } else {
         for (const f of Array.from(e.dataTransfer.files)) {
-          if (isAllowed(f.name)) files.push(f);
+          if (isSupportedItbFile(f.name)) files.push(f);
         }
       }
       if (files.length) onFiles(files);
@@ -83,7 +76,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
     if (!list) return;
-    const files = Array.from(list).filter((f) => isAllowed(f.name));
+    const files = Array.from(list).filter((f) => isSupportedItbFile(f.name));
     if (files.length) onFiles(files);
     e.target.value = "";
   };
@@ -119,7 +112,7 @@ export default function DropZone({ onFiles, disabled }: Props) {
         ref={fileInput}
         type="file"
         multiple
-        accept={ALLOWED.join(",")}
+        accept={ITB_FILE_ACCEPT}
         className="hidden"
         onChange={handleInput}
       />
@@ -145,13 +138,13 @@ export default function DropZone({ onFiles, disabled }: Props) {
         Drop your <span className="text-rose">ITB folder</span> here
       </p>
       <p className="mt-1 font-mono text-xs text-paper-200/90">
-        or click to browse &middot; PDFs and screenshots are read automatically
+        or click to browse &middot; documents, spreadsheets, presentations, images and audio metadata are read automatically
       </p>
 
-      <div className="mt-5 flex items-center justify-center gap-3">
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
-          className="rounded-lg bg-maroon px-4 py-1.5 font-mono text-xs font-semibold text-paper-50 transition hover:bg-maroon-light"
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-red px-4 font-mono text-xs font-semibold text-white transition hover:bg-red/90"
           onClick={(e) => {
             e.stopPropagation();
             dirInput.current?.click();
@@ -161,13 +154,27 @@ export default function DropZone({ onFiles, disabled }: Props) {
         </button>
         <button
           type="button"
-          className="rounded-lg border border-ink-600 px-4 py-1.5 font-mono text-xs text-paper-50 transition hover:border-rose hover:text-rose"
+          className="inline-flex h-10 items-center justify-center rounded-lg border border-ink-600 bg-ink-900 px-4 font-mono text-xs text-paper-50 transition hover:border-red/60 hover:text-paper-50"
           onClick={(e) => {
             e.stopPropagation();
             fileInput.current?.click();
           }}
         >
           SELECT FILES
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenHistory();
+          }}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-ink-600 bg-ink-900/70 px-4 font-mono text-xs text-paper-200/90 transition hover:border-red/60 hover:text-paper-50"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+          HISTORY
         </button>
       </div>
     </div>

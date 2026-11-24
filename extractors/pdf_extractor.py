@@ -18,7 +18,10 @@ except ImportError:
     pdfplumber = None
 
 # Extensions treated as standalone images (screenshots) inside an ITB folder.
-IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff')
+IMAGE_EXTENSIONS = (
+    '.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff',
+    '.svg', '.psd', '.ai',
+)
 
 
 class PDFExtractor:
@@ -58,6 +61,33 @@ class PDFExtractor:
                     text.append(extracted)
         return "\n".join(text)
 
+    def render_scanned_pages(
+        self, pdf_path: str, output_dir: str, max_pages: int = 12
+    ) -> List[str]:
+        """Render pages with little extractable text for the vision OCR path."""
+        if max_pages <= 0:
+            return []
+        if fitz is None:
+            raise RuntimeError("PyMuPDF is required to render scanned PDF pages.")
+
+        rendered: List[str] = []
+        output_path = os.path.abspath(output_dir)
+        stem = os.path.splitext(os.path.basename(pdf_path))[0]
+        with fitz.open(pdf_path) as doc:
+            for index, page in enumerate(doc):
+                if len(rendered) >= max_pages:
+                    break
+                if len((page.get_text() or "").strip()) >= 40:
+                    continue
+                page_size = max(page.rect.width, page.rect.height)
+                if page_size <= 0:
+                    continue
+                scale = min(2.0, 2200 / page_size)
+                image_path = os.path.join(output_path, f"{stem}-page-{index + 1}.png")
+                page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).save(image_path)
+                rendered.append(image_path)
+        return rendered
+
     def extract_itb_folder(self, itb_dir: str, pattern: str = '*.pdf') -> List[Dict]:
         """Read every PDF in a folder that matches a filename glob.
 
@@ -87,7 +117,10 @@ class PDFExtractor:
 
     def collect_image_files(self, folder: str, patterns: List[str] = None) -> List[str]:
         """Collect standalone image files (e.g. screenshots) from a folder."""
-        patterns = patterns or ['*.png', '*.jpg', '*.jpeg', '*.webp', '*.bmp']
+        patterns = patterns or [
+            '*.png', '*.jpg', '*.jpeg', '*.webp', '*.bmp', '*.gif', '*.tif', '*.tiff',
+            '*.svg', '*.psd', '*.ai',
+        ]
         found = []
         for fname in os.listdir(folder):
             if fname.lower().endswith(IMAGE_EXTENSIONS) and any(

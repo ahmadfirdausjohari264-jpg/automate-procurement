@@ -6,8 +6,10 @@ copy-ready quotation request email.
 
 ## What it does
 
-1. **Read** every uploaded document — PDF (`text + rendered pages`), Word
-   (`.docx`), Excel (`.xlsx`/`.xlsm`) and images/screenshots (`.png/.jpg/.jpeg/.webp/.bmp`).
+1. **Read** uploaded files — PDF (text plus vision OCR for scanned pages), Word
+   (`.docx/.doc/.rtf/.odt/.pages`), text (`.txt`), spreadsheets
+   (`.xlsx/.xlsm/.xls/.ods/.csv`), presentations (`.pptx/.ppt/.key`), graphics
+   (`.png/.jpg/.webp/.svg/.psd/.ai`) and embedded audio metadata.
 2. **Classify** with Gemini: separate genuine purchasable line items from
    requirements, rules and boilerplate; extract project metadata.
 - Skip specific documents by exact filename (Settings panel) if a folder
@@ -18,6 +20,11 @@ copy-ready quotation request email.
   search, and project-shortlist tabs. Drop Excel, CSV, PDF, Word, PowerPoint, or
   image files into the directory workspace to extract supplier records for review
   before saving them.
+- Keep saved runs in the **JobList history** drawer rather than the navigation
+  sidebar. The completed JobList's **Generate Email** step opens a free composer:
+  write from scratch or optionally generate a suggestion, edit To/CC/BCC, subject,
+  body, and attachments, then save or copy the draft. Emails are never sent
+  automatically.
 
 ## Requirements
 
@@ -37,6 +44,11 @@ pip install -r requirements.txt
 # frontend deps
 cd web; npm install; cd ..
 ```
+
+Legacy `.doc` conversion uses Antiword or LibreOffice (`soffice`); `.ppt`, `.pages`,
+and `.key` conversion falls back to LibreOffice. Install the relevant converter and
+ensure it is on `PATH`. Modern Office formats use native parsers. SVG/PSD/AI
+graphics are normalized for vision processing, and audio files contribute metadata only.
 
 Create a `.env` file in the repo root (gitignored):
 
@@ -67,7 +79,7 @@ Then open **http://localhost:5173** (Vite proxies `/api` → `:8000`):
 
 1. Drag in an ITB folder or select files (PDF / Word / Excel / images).
 2. Optionally click documents in **Settings · Skip Files** (or type exact filenames) to exclude them.
-3. Click **RUN PIPELINE** — progress streams live.
+3. Click **RUN JOBLIST** — progress streams live.
 4. When done: **Download specification sheet (.docx)** and copy the generated **quotation email**.
 
 To build the frontend for production: `cd web; npm run build` (output in `web/dist`).

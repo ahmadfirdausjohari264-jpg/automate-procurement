@@ -1,10 +1,14 @@
-"""Word (.docx) and Excel (.xlsx/.xlsm) text extraction for ITB packages."""
+"""Word (.docx/.doc) and Excel (.xlsx/.xlsm) text extraction for ITB packages."""
 import fnmatch
 import os
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 from typing import Dict, List
 
 # Office document extensions this extractor can read.
-DOCX_EXTENSIONS = ('.docx',)
+WORD_EXTENSIONS = ('.docx', '.doc')
 EXCEL_EXTENSIONS = ('.xlsx', '.xlsm')
 
 
@@ -12,7 +16,7 @@ class OfficeExtractor:
     """Reads text out of Word and Excel documents found in a folder."""
 
     def extract_docx_text(self, path: str) -> str:
-        """Return paragraphs and tables of a .docx as plain text lines."""
+        """Return body, table, header and footer text from a .docx."""
         try:
             from docx import Document
         except ImportError as e:
@@ -21,16 +25,109 @@ class OfficeExtractor:
             ) from e
         doc = Document(path)
         parts: List[str] = []
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if text:
-                parts.append(text)
-        for table in doc.tables:
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells]
-                if any(cells):
-                    parts.append(" | ".join(cells))
+
+        def append_part(part) -> None:
+            for para in part.paragraphs:
+                text = para.text.strip()
+                if text:
+                    parts.append(text)
+            for table in part.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells]
+                    if any(cells):
+                        parts.append(" | ".join(cells))
+
+        append_part(doc)
+        for section in doc.sections:
+            append_part(section.header)
+            append_part(section.footer)
         return "\n".join(parts)
+
+    def extract_doc_text(self, path: str) -> str:
+        """Extract legacy binary .doc text with Antiword or LibreOffice."""
+        antiword = shutil.which("antiword")
+        antiword_error = None
+        if antiword:
+            try:
+                result = subprocess.run(
+                    [antiword, path],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                )
+                if result.stdout.strip():
+                    return result.stdout.strip()
+                antiword_error = "The document contains no readable text."
+            except (OSError, subprocess.SubprocessError) as exc:
+                antiword_error = f"Antiword could not read the file: {exc}"
+
+        try:
+            return self.extract_with_libreoffice(path)
+        except RuntimeError as exc:
+            if antiword_error:
+                raise RuntimeError(f"{antiword_error} LibreOffice fallback: {exc}") from exc
+            raise
+
+    def extract_with_libreoffice(self, path: str, output_format: str = "txt:Text") -> str:
+        """Convert an Office/iWork file to text or PDF with a headless LibreOffice."""
+        soffice = shutil.which("soffice") or shutil.which("libreoffice")
+        if not soffice:
+            raise RuntimeError(
+                "This file format requires LibreOffice (soffice) on the server."
+            )
+
+        extension = output_format.split(":", 1)[0].lower()
+        with tempfile.TemporaryDirectory(prefix="itb-convert-") as temp_dir:
+            output_dir = Path(temp_dir)
+            command = [
+                soffice,
+                "--headless",
+                "--nologo",
+                "--nodefault",
+                "--nolockcheck",
+                "--norestore",
+                f"-env:UserInstallation={(output_dir / 'profile').as_uri()}",
+                "--convert-to",
+                output_format,
+                "--outdir",
+                str(output_dir),
+                path,
+            ]
+            try:
+                subprocess.run(
+                    command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                detail = getattr(exc, "stderr", None)
+                detail = detail.strip() if isinstance(detail, str) and detail.strip() else str(exc)
+                raise RuntimeError(f"LibreOffice could not read the file: {detail}") from exc
+
+            converted_path = output_dir / f"{Path(path).stem}.{extension}"
+            if not converted_path.is_file():
+                raise RuntimeError("LibreOffice did not produce a readable conversion.")
+            if extension == "pdf":
+                from .pdf_extractor import PDFExtractor
+
+                return PDFExtractor().extract_text_from_pdf(str(converted_path))
+            text = converted_path.read_text(encoding="utf-8", errors="replace").strip()
+            if not text:
+                raise RuntimeError("The converted document contains no readable text.")
+            return text
+
+    def extract_word_text(self, path: str) -> str:
+        """Read a modern .docx file or convert a legacy .doc file."""
+        if Path(path).suffix.lower() == ".doc":
+            return self.extract_doc_text(path)
+        return self.extract_docx_text(path)
 
     def extract_xlsx_text(self, path: str) -> str:
         """Return every non-empty spreadsheet row as ``a | b | c`` text lines.
@@ -67,8 +164,8 @@ class OfficeExtractor:
         results: List[Dict] = []
         for fname in os.listdir(folder):
             low = fname.lower()
-            if low.endswith(DOCX_EXTENSIONS):
-                reader = self.extract_docx_text
+            if low.endswith(WORD_EXTENSIONS):
+                reader = self.extract_word_text
             elif low.endswith(EXCEL_EXTENSIONS):
                 reader = self.extract_xlsx_text
             else:
